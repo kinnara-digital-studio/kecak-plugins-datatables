@@ -1,0 +1,56 @@
+[
+  {
+    "title": "@@userview.datatables.edit@@",
+    "properties":
+    [
+      {
+        "name": "id",
+        "label": "ID",
+        "type": "hidden"
+      },
+      {
+        "name": "customId",
+        "label": "@@userview.datatables.customId@@",
+        "type": "textfield",
+        "regex_validation": "^[a-zA-Z0-9_]+$",
+        "validation_message": "@@userview.datatables.invalidId@@"
+      },
+      {
+        "name": "label",
+        "label": "@@userview.datatables.label@@",
+        "type": "textfield",
+        "required": "true",
+        "value": "DataTables"
+      },
+      {
+        "name" : "dataListId",
+        "label": "@@userview.datatables.datalist@@",
+        "type" : "selectbox",
+        "required" : "true",
+        "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/datalist/options"
+      },
+      {
+        "name" : "formDefIdCreate",
+        "label": "@@userview.datatables.formadd@@",
+        "type" : "selectbox",
+        "required" : "true",
+        "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
+      },
+      {
+        "name" : "formDefId",
+        "label": "@@userview.datatables.formedit@@",
+        "type" : "selectbox",
+        "required" : "true",
+        "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
+      },
+      {
+        "name" : "calculationLoadBinder",
+        "label" : "@@userview.datatables.calculationLoadBinder@@",
+        "description" : "@@userview.datatables.calculationLoadBinder.desc@@",
+        "type" : "elementselect",
+        "options_ajax" : "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormLoadElementBinder",
+        "url" : "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions"
+      }
+    ]
+  }
+]
