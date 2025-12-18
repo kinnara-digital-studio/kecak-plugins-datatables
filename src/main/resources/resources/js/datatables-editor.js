@@ -98,7 +98,7 @@
 
             var field = cell.data('field');
             var meta  = this.FIELD_META[field];
-            if (!meta || meta.readonly === true) return;
+            if (!meta || meta.readonly === true || meta.calculationLoadBinder || meta.isHidden === true) return;
 
             this.editingCell  = cell;
             this.originalValue =
