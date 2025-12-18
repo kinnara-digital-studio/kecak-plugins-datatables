@@ -24,7 +24,7 @@
             <#list dataList.columns as c>
                 <th>${c.label}</th>
             </#list>
-            <th style="width:40px;text-align:center;">&nbsp;</th>
+            <th style="width:10px;">&nbsp;</th>
         </tr>
     </thead>
     <tbody></tbody>
@@ -33,6 +33,7 @@
 <script>
 $(function () {
     var FIELD_META = ${fieldMeta};
+    var CAN_EDIT = ${permissionToEdit?string("true","false")};
 
     // ================= INIT TABLE =================
     var table = $('#inlineTable').DataTable({
@@ -41,7 +42,7 @@ $(function () {
         searching: false,
         dom: 'Bfrtip',
         buttons: [
-            {
+            CAN_EDIT ? {
                 text: '<i class="fa fa-plus"></i> Add',
                 init: function (api, node) {
                     $(node).attr('id', 'btnAddRow');
@@ -49,14 +50,14 @@ $(function () {
                 action: function () {
                     AddRowManager.openAddForm();
                 }
-            },
+            } : null,
             {
                 text: '<i class="fa fa-refresh "/>',
                 action: function () {
                     table.ajax.reload();
                 }
             }
-        ],
+        ].filter(Boolean),
         ajax: {
             url: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/datalist/${dataListId!}',
             dataSrc: 'data'
@@ -99,6 +100,10 @@ $(function () {
             }
         ]
     });
+
+    if (!CAN_EDIT) {
+        table.column('.col-action').visible(false);
+    }
 
     /* ================= INIT DATATABLES EDITOR ================= */
     DataTablesEditor.init({

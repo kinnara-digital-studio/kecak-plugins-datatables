@@ -94,6 +94,8 @@
         /* ================= INLINE EDIT ================= */
 
         onCellClick: function (cell) {
+            if (!window.CAN_EDIT) return;
+
             if (this.editingCell || this.isSaving) return;
 
             var field = cell.data('field');
@@ -208,6 +210,8 @@
         /* ================= DELETE ================= */
 
         onDelete: function (row) {
+            if (!window.CAN_EDIT) return;
+
             var self = this;
             if (self.isSaving) return;
 

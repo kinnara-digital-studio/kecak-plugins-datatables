@@ -2,7 +2,6 @@
     td.readonly {
         background: #f5f5f5;
         cursor: not-allowed;
-        color: #888;
     }
 
     td.editing {

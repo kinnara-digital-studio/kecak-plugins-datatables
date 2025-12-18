@@ -12,10 +12,13 @@ import org.joget.apps.datalist.model.DataList;
 import org.joget.apps.datalist.service.DataListService;
 import org.joget.apps.form.service.FormService;
 import org.joget.apps.userview.model.UserviewMenu;
+import org.joget.apps.userview.model.UserviewPermission;
 import org.joget.commons.util.LogUtil;
 import org.joget.commons.util.SecurityUtil;
+import org.joget.directory.model.User;
 import org.joget.plugin.base.PluginManager;
 import org.joget.plugin.base.PluginWebSupport;
+import org.joget.workflow.model.service.WorkflowUserManager;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.context.ApplicationContext;
@@ -87,6 +90,10 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
         dataModel.put("fieldMeta", fieldMetaJson);
         LogUtil.warn(getClassName(), "FIELD_META_EDIT [" + fieldMeta + "]");
 
+        final boolean permissionToEdit = getPermissionToEdit();
+        dataModel.put("permissionToEdit", permissionToEdit);
+        LogUtil.warn(getClassName(), "PERMISSION_TO_EDIT [" + permissionToEdit + "]");
+
         return pluginManager.getPluginFreeMarkerTemplate(dataModel, getClassName(), template, "/messages/DataTablesMenu");
     }
 
@@ -138,6 +145,23 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
         return SecurityUtil.generateNonce(
                 new String[]{"EmbedForm", appDefinition.getAppId(), appDefinition.getVersion().toString(), jsonForm},
                 1);
+    }
+
+    protected boolean getPermissionToEdit() {
+        ApplicationContext appContext = AppUtil.getApplicationContext();
+        PluginManager pluginManager = (PluginManager) appContext.getBean("pluginManager");
+        WorkflowUserManager workflowUserManager = (WorkflowUserManager) appContext.getBean("workflowUserManager");
+        final User currentUser = workflowUserManager.getCurrentUser();
+        Optional<UserviewPermission> optPermission = Optional.of("permission").map(this::getProperty)
+                .map(o -> (Map<String, Object>) o)
+                .map(pluginManager::getPlugin);
+
+        return optPermission
+                .map(permission -> {
+                    permission.setCurrentUser(currentUser);
+                    return permission.isAuthorize();
+                })
+                .orElse(false);
     }
 
     @Override
