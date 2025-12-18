@@ -15,20 +15,23 @@ import org.joget.apps.userview.model.UserviewMenu;
 import org.joget.commons.util.LogUtil;
 import org.joget.commons.util.SecurityUtil;
 import org.joget.plugin.base.PluginManager;
+import org.joget.plugin.base.PluginWebSupport;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.context.ApplicationContext;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 
+import java.io.IOException;
 import java.util.*;
 
 /**
  * DataTables Editor
  * @author tiyojati
  */
-public class DataTablesMenu extends UserviewMenu {
+public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
     private final static String LABEL = "DataTables Editor Menu";
 
     @Override
@@ -64,6 +67,7 @@ public class DataTablesMenu extends UserviewMenu {
 
         final JSONObject jsonFormCreate = getJsonForm(formDefIdCreate);
         dataModel.put("jsonForm", jsonFormCreate.toString());
+        LogUtil.warn(getClassName(), "JSON_FORM [" + jsonFormCreate.toString() + "]");
 
         final String nonce = generateNonce(appDefinition, jsonFormCreate.toString());
         dataModel.put("nonce", nonce);
@@ -84,6 +88,11 @@ public class DataTablesMenu extends UserviewMenu {
         LogUtil.warn(getClassName(), "FIELD_META_EDIT [" + fieldMeta + "]");
 
         return pluginManager.getPluginFreeMarkerTemplate(dataModel, getClassName(), template, "/messages/DataTablesMenu");
+    }
+
+    @Override
+    public void webService(HttpServletRequest httpServletRequest, HttpServletResponse httpServletResponse) throws ServletException, IOException {
+
     }
 
     protected DataList getDataList(String dataListId) {

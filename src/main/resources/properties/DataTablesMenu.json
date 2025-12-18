@@ -44,11 +44,10 @@
         "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
       },
       {
-        "name" : "calculationLoadBinder",
-        "label" : "@@userview.datatables.calculationLoadBinder@@",
-        "description" : "@@userview.datatables.calculationLoadBinder.desc@@",
+        "name": "permission",
+        "label": "@@userview.datatables.persmissiontoedit@@",
         "type" : "elementselect",
-        "options_ajax" : "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormLoadElementBinder",
+        "options_ajax" : "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.userview.model.UserviewAccessPermission",
         "url" : "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions"
       }
     ]

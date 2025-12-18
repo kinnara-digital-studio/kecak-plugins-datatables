@@ -3,6 +3,7 @@
 <script src="${request.contextPath}/plugin/${className}/core/js/jquery.dataTables.min.js"></script>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/core/css/dataTables.buttons.min.css" type="text/css"/>
 <script src="${request.contextPath}/plugin/${className}/core/js/dataTables.buttons.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/decimal.js@10.4.3/decimal.min.js"></script>
 
 <!-- TOAST DIALOG -->
 <script src="${request.contextPath}/plugin/${className}/js/toast-dialog.js"></script>
@@ -82,7 +83,7 @@ $(function () {
                         .attr('data-field', '${c.name}')
                         .attr('data-id', rowData.id)
                         .attr('data-type', meta.type || 'text')
-                        .toggleClass('readonly', meta.readonly === true)
+                        .toggleClass('readonly', meta.readonly === true || meta.calculationLoadBinder || meta.isHidden === true)
                 }
             }<#if c_has_next>,</#if>
             </#list>,

@@ -28,7 +28,8 @@ public class DataTablesUtil {
         for (int i = 0; i < elements.length(); i++) {
             JSONObject el = elements.getJSONObject(i);
 
-            if (el.has("className") && el.getString("className").startsWith("org.joget.apps.form.lib")) {
+            if (el.has("className") && el.getString("className").startsWith("org.joget.apps.form.lib")
+                    || el.getString("className").startsWith("com.kinnarastudio")) {
 
                 String className = el.getString("className");
                 JSONObject props = el.getJSONObject("properties");
@@ -60,6 +61,26 @@ public class DataTablesUtil {
                         meta.put("options", props.optJSONArray("options"));
                     }
 
+                    boolean isHidden = "true".equalsIgnoreCase(props.optString("hidden"));
+                    meta.put("isHidden", isHidden);
+
+                    if (props.has("calculationLoadBinder")) {
+                        JSONObject calc = props.getJSONObject("calculationLoadBinder");
+                        JSONObject calcProps = calc.optJSONObject("properties");
+
+                        Map<String, Object> calcMeta = new HashMap<>();
+                        calcMeta.put("className", calc.optString("className"));
+                        if (calcProps != null) {
+                            calcMeta.put("equation", calcProps.optString("equation"));
+                            calcMeta.put("debug", calcProps.optString("debug"));
+                        }
+                        if (props.has("variables")) {
+                            calcMeta.put("variables", props.getJSONArray("variables"));
+                        }
+                        meta.put("calculationLoadBinder", calcMeta);
+                    } else {
+                        meta.put("calculationLoadBinder", null);
+                    }
                     result.put(fieldId, meta);
                 }
             }
