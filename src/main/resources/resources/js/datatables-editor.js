@@ -13,6 +13,7 @@
 
         table: null,
         FIELD_META: null,
+        editable: false,
         BASE_URL: null,
 
         // add form
@@ -30,6 +31,7 @@
         init: function (opts) {
             this.table       = opts.table;
             this.FIELD_META  = opts.fieldMeta;
+            this.editable    = opts.editable;
             this.BASE_URL    = opts.baseUrl;
 
             // add form (optional)
@@ -94,7 +96,7 @@
         /* ================= INLINE EDIT ================= */
 
         onCellClick: function (cell) {
-            if (!window.CAN_EDIT) return;
+            if (this.editable === false) return;
 
             if (this.editingCell || this.isSaving) return;
 

@@ -109,6 +109,7 @@ $(function () {
     DataTablesEditor.init({
         table: table,
         fieldMeta: FIELD_META,
+        editable: CAN_EDIT,
         formDefId: '${formDefIdCreate!}',
         jsonForm: '${jsonForm!}',
         nonce: '${nonce!}',
