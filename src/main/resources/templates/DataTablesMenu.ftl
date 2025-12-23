@@ -114,7 +114,8 @@ $(function () {
         jsonForm: '${jsonForm!}',
         nonce: '${nonce!}',
         baseUrl: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/form/${formDefId!}',
-        addBaseUrl: '${request.contextPath}/web/app/${appId!}/${appVersion}/form/embed?_submitButtonLabel=Submit'
+        addBaseUrl: '${request.contextPath}/web/app/${appId!}/${appVersion}/form/embed?_submitButtonLabel=Submit',
+        serviceUrl: '${request.contextPath}${serviceUrl}'
     });
 
 

@@ -15,6 +15,7 @@
         FIELD_META: null,
         editable: false,
         BASE_URL: null,
+        SERVICE_URL: null,
 
         // add form
         formDefId: null,
@@ -23,8 +24,10 @@
         ADD_BASE_URL: null,
 
         editingCell: null,
-        originalValue: '',
+        originalRowData: null,
+        calculatedRowData: null,
         isSaving: false,
+        fieldCalculateMap: null,
 
         /* ================= INIT ================= */
 
@@ -33,6 +36,7 @@
             this.FIELD_META  = opts.fieldMeta;
             this.editable    = opts.editable;
             this.BASE_URL    = opts.baseUrl;
+            this.SERVICE_URL = opts.serviceUrl;
 
             // add form (optional)
             this.formDefId   = opts.formDefId;
@@ -40,6 +44,7 @@
             this.nonce       = opts.nonce;
             this.ADD_BASE_URL = opts.addBaseUrl;
 
+            this.fieldCalcMap();
             this.bind();
         },
 
@@ -67,13 +72,12 @@
                 if (e.key === 'Tab') {
                     e.preventDefault();
                     self.save();
-                    self.editingCell?.next('td[data-field]').trigger('click');
+                    self.saveAndMoveNext(e.shiftKey === true);
                 }
-            });
-
-            // esc cancel
-            $(document).on('keydown', function (e) {
-                if (e.key === 'Escape') self.cancel();
+                if (e.key === 'Escape') {
+                    e.preventDefault();
+                    self.cancel();
+                }
             });
 
             // click outside cancel
@@ -89,7 +93,7 @@
             });
 
             $(document).on('input change', '.cell-editor', function () {
-                DataTablesEditor.liveCalculate();
+                self.liveCalculate();
             });
         },
 
@@ -104,17 +108,56 @@
             var meta  = this.FIELD_META[field];
             if (!meta || meta.readonly === true || meta.calculationLoadBinder || meta.isHidden === true) return;
 
-            this.editingCell  = cell;
-            this.originalValue =
-                cell.attr('data-value') ?? $.trim(cell.text());
+            var row = this.table.row(cell.closest('tr'));
+
+            this.originalRowData = $.extend(true, {}, row.data());
+            this.editingCell = cell;
 
             cell
                 .addClass('editing')
                 .data('meta', meta)
                 .empty()
-                .append(this.buildEditor(meta.type, this.originalValue, meta))
+                .append(this.buildEditor(meta.type, cell.attr('data-value'), meta))
                 .find('.cell-editor')
                 .focus();
+        },
+
+        saveAndMoveNext: function (reverse) {
+            if (!this.editingCell || this.isSaving) return;
+
+            var self = this;
+            var currentCell = this.editingCell;
+
+            var nextCell = this.findNextEditableCell(currentCell, reverse);
+
+            this.save();
+
+            setTimeout(function () {
+                if (nextCell) {
+                    nextCell.trigger('click');
+                }
+            }, 150);
+        },
+
+        findNextEditableCell: function (cell, reverse) {
+            var row = cell.closest('tr');
+            var cells = row.find('td[data-field]');
+            var index = cells.index(cell);
+            var step = reverse ? -1 : 1;
+
+            for (var i = index + step; i >= 0 && i < cells.length; i += step) {
+                var next = $(cells[i]);
+                var field = next.data('field');
+                var meta  = this.FIELD_META[field];
+
+                if (!meta) continue;
+                if (meta.readonly === true) continue;
+                if (meta.calculationLoadBinder) continue;
+                if (meta.isHidden === true) continue;
+
+                return next;
+            }
+            return null;
         },
 
         save: function () {
@@ -142,17 +185,16 @@
             var meta  = cell.data('meta');
 
             var row = self.table.row(cell.closest('tr'));
-            var rowData = $.extend({}, row.data());
+            var rowData = self.calculatedRowData
+                ? $.extend({}, self.calculatedRowData)
+                : $.extend({}, row.data());
 
             rowData[field] = newValue;
 
-            // update calculation fields (jika ada)
-            self.applyCalculations(rowData);
-
             var body = { id: id };
-            body[field] = newValue;
-            $.each(self.FIELD_META, function (f) {
-                if (f !== field && rowData[f] != null) {
+
+            Object.keys(self.FIELD_META).forEach(function (f) {
+                if (rowData[f] != null) {
                     body[f] = rowData[f];
                 }
             });
@@ -167,6 +209,7 @@
                     $.each(body, function (field, value) {
                         self.commitRowChange(field, value);
                     });
+                    self.calculatedRowData = null;
                     self.applyValue(cell, newValue, meta);
                     cell.addClass('saved');
                     showToast('Changes saved successfully', 'success');
@@ -174,7 +217,7 @@
                 },
 
                 error: function () {
-                    self.rollback();
+                    self.restoreRow();
                     showToast('Failed to save changes', 'error');
                 }
             });
@@ -189,23 +232,41 @@
                .invalidate();
         },
 
+        commitCalculatedValues: function (row, rowData) {
+            var data = row.data();
+            Object.keys(this.FIELD_META).forEach(function (f) {
+                if (rowData[f] !== undefined) {
+                    data[f] = rowData[f];
+                }
+            });
+            row.data(data).invalidate();
+        },
+
         cancel: function () {
             if (!this.editingCell || this.isSaving) return;
-            this.rollback();
+            this.restoreRow();
             showToast('Edit cancelled', 'info');
         },
 
-        rollback: function () {
-            if (!this.editingCell) return;
-            var meta = this.editingCell.data('meta');
-            this.applyValue(this.editingCell, this.originalValue, meta);
-            this.markCancelled(this.editingCell);
+        restoreRow: function () {
+            var row = this.table.row(this.editingCell.closest('tr'));
+            var self = this;
+
+            row.data(this.originalRowData);
+
+            Object.keys(this.FIELD_META).forEach(function (f) {
+                var meta = self.FIELD_META[f];
+                if (meta.isHidden) return;
+                var cell = self.findCellByField(f, row);
+                if (cell) self.applyValue(cell, self.originalRowData[f], meta);
+            });
+
             this.reset();
         },
 
         reset: function () {
             this.editingCell = null;
-            this.originalValue = '';
+            this.originalRowData = null;
             this.isSaving = false;
         },
 
@@ -318,6 +379,22 @@
                 .removeClass('editing');
         },
 
+        fieldCalcMap: function () {
+            var map = {};
+
+            Object.keys(this.FIELD_META).forEach(function (field) {
+                var calc = DataTablesEditor.FIELD_META[field].calculationLoadBinder;
+                if (!calc || !calc.variables) return;
+
+                calc.variables.forEach(function (v) {
+                    map[v.variableName] = map[v.variableName] || [];
+                    map[v.variableName].push(field);
+                });
+            });
+
+            this.fieldCalculateMap = map;
+        },
+
         buildEditor: function (type, value, meta) {
             value = value ?? '';
 
@@ -345,11 +422,11 @@
             }
         },
 
+        /* ================= LIVE CALCULATION ================= */
         liveCalculate: function () {
             if (!this.editingCell) return;
 
             var self = this;
-
             var row = this.table.row(this.editingCell.closest('tr'));
             var rowData = $.extend({}, row.data());
 
@@ -358,57 +435,61 @@
 
             rowData[editedField] = editorVal || '0';
 
-            var calcFields = Object.keys(this.FIELD_META).filter(function (f) {
-                return self.FIELD_META[f].calculationLoadBinder &&
-                       self.FIELD_META[f].calculationLoadBinder.equation;
-            });
-
-            for (var pass = 0; pass < calcFields.length; pass++) {
-                calcFields.forEach(function (field) {
-                    var meta = self.FIELD_META[field];
-                    var eq   = meta.calculationLoadBinder.equation;
-
-                    try {
-                        rowData[field] = self.evaluateEquation(eq, rowData);
-                    } catch (e) {
-                        console.warn('Live calc failed:', field, e);
-                    }
-                });
-            }
+            var calcFields = this.fieldCalculateMap[editedField] || [];
+            if (!calcFields.length) return;
 
             calcFields.forEach(function (field) {
-                var meta = self.FIELD_META[field];
-
-                if (meta.isHidden === true) return;
-                if (field === editedField) return;
-
-                var cell = self.findCellByField(field, row);
-                if (!cell || cell.hasClass('editing')) return;
-
-                self.applyValue(cell, rowData[field], meta);
+                self.calculateField(field, row, rowData);
             });
         },
 
-        evaluateEquation: function (equation, rowData) {
-            var expr = equation;
+        calculateField: function (field, row, rowData) {
+            var self = this;
+            var meta = this.FIELD_META[field];
+            var calc = meta.calculationLoadBinder;
 
-            Object.keys(rowData).forEach(function (key) {
-                var value = rowData[key];
-                if (value === undefined || value === null || value === '') {
-                    value = '0';
-                }
-                expr = expr.replace(
-                    new RegExp('\\b' + key + '\\b', 'g'),
-                    'new Decimal("' + value + '")'
-                );
+            if (!calc || !calc.variables) return;
+
+            var params = {};
+            calc.variables.forEach(function (v) {
+                params[v.variableName] = rowData[v.variableName] || 0;
             });
 
-            try {
-                return eval(expr).toString();
-            } catch (e) {
-                console.error('Equation error:', equation, rowData);
-                return '0';
-            }
+            $.ajax({
+                url: self.SERVICE_URL,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    formDefId: self.formDefId,
+                    fieldId: field,
+                    primaryKey: rowData.id,
+                    requestParams: params
+                }),
+
+                success: function (res) {
+                    if (!res || res.value == null) return;
+
+                    rowData[field] = res.value;
+
+                    self.calculatedRowData = $.extend({}, rowData);
+
+                    if (!meta.isHidden) {
+                        var cell = self.findCellByField(field, row);
+                        if (cell && !cell.hasClass('editing')) {
+                            self.applyValue(cell, res.value, meta);
+                        }
+                    }
+
+                    var nextCalcField = self.fieldCalculateMap[field] || [];
+                    nextCalcField.forEach(function (f) {
+                        self.calculateField(f, row, rowData);
+                    });
+                },
+
+                error: function () {
+                    console.warn('Calculation failed:', field);
+                }
+            });
         },
 
         findCellByField: function (field, row) {
@@ -420,33 +501,6 @@
                 }
             });
             return cell;
-        },
-
-        applyCalculations: function (rowData) {
-            var self = this;
-
-            // Ambil hanya field yang punya calculation
-            var calcFields = Object.keys(self.FIELD_META).filter(function (field) {
-                return self.FIELD_META[field].calculationLoadBinder &&
-                       self.FIELD_META[field].calculationLoadBinder.equation;
-            });
-
-            // Multi-pass supaya dependency resolve tanpa hardcode
-            for (var pass = 0; pass < calcFields.length; pass++) {
-                calcFields.forEach(function (field) {
-                    var meta = self.FIELD_META[field];
-                    var equation = meta.calculationLoadBinder.equation;
-
-                    rowData[field] = self.evaluateEquation(equation, rowData);
-                });
-            }
-        },
-
-        markCancelled: function (cell) {
-            cell.addClass('edit-cancelled');
-            setTimeout(function () {
-                cell.removeClass('edit-cancelled');
-            }, 800);
         }
     };
 
