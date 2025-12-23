@@ -1,4 +1,4 @@
-# DataTables Editor Menu
+# DataTables Menu
 
 ## Plugin Type
 Userview Menu
@@ -6,7 +6,7 @@ Userview Menu
 ---
 
 ## Overview
-**DataTables Editor Menu** is a **Kecak Userview Menu plugin** that integrates **DataTables Editor** with **Datalist** and **Form** to provide a rich, interactive CRUD experience inside a Userview.
+**DataTables Menu** is a **Kecak Userview Menu plugin** that integrates **DataTables** with **Datalist** and **Form** to provide a rich, interactive CRUD experience inside a Userview.
 
 This plugin supports:
 - Inline editing
