@@ -273,9 +273,10 @@
         /* ================= DELETE ================= */
 
         onDelete: function (row) {
-            if (!window.CAN_EDIT) return;
-
+            debugger;
             var self = this;
+            if (!self.editable) return;
+
             if (self.isSaving) return;
 
             var data = self.table.row(row).data();

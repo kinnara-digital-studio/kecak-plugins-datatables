@@ -59,6 +59,36 @@
         display: none;
     }
 
+    .dt-empty-state {
+        width: 100%;
+        padding: 40px 0;
+        text-align: center;
+    }
+
+    .dt-empty-box {
+        display: inline-block;
+        padding: 32px 48px;
+        border: 1px dashed #ccc;
+        border-radius: 8px;
+        background: #fafafa;
+    }
+
+    .dt-empty-icon {
+        font-size: 40px;
+        margin-bottom: 12px;
+    }
+
+    .dt-empty-title {
+        font-size: 18px;
+        font-weight: 600;
+        margin-bottom: 6px;
+    }
+
+    .dt-empty-desc {
+        font-size: 13px;
+        color: #777;
+    }
+
 
 
 

@@ -28,7 +28,15 @@
     </thead>
     <tbody></tbody>
 </table>
-
+<div id="dt-empty-state" class="dt-empty-state" style="display:none;">
+    <div class="dt-empty-box">
+        <div class="dt-empty-icon">📭</div>
+        <div class="dt-empty-title">No Data Available</div>
+        <div class="dt-empty-desc">
+            Nothing found to display.
+        </div>
+    </div>
+</div>
 <script>
     $(function () {
         var FIELD_META = ${fieldMeta};
@@ -41,17 +49,18 @@
             serverSide: false,
             searching: false,
             dom: 'Bfrtip',
-            language: {
-                emptyTable: 'Nothing found to display',
-                zeroRecords: 'Nothing found to display'
-            },
             ajax: {
                 url: '${request.contextPath}/web/json/app/${appId!}/${appVersion}/plugin/${className}/service',
                 dataSrc: function (json) {
-                    if (!json || !Array.isArray(json.data)) {
-                        return [];
+                    const data = (json && Array.isArray(json.data)) ? json.data : [];
+                    if (data.length === 0) {
+                        $('#inlineTable').hide();
+                        $('#dt-empty-state').show();
+                    } else {
+                        $('#dt-empty-state').hide();
+                        $('#inlineTable').show();
                     }
-                    return json.data;
+                    return data;
                 },
                 data: function (d) {
                     d.type     = 'getDatalist';

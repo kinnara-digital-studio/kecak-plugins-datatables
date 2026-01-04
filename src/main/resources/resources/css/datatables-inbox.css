@@ -54,10 +54,3 @@ td.col-action {
 .dt-action-submit:hover {
     background: #eaeaea;
 }
-
-.dataTables_empty {
-    text-align: center !important;
-    font-style: italic;
-    color: #888;
-    padding: 20px !important;
-}
