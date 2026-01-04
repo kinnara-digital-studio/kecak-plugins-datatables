@@ -50,6 +50,59 @@
 
             this.fieldCalcMap();
             this.bind();
+            this.bindEmptyState();
+        },
+
+        /* ================= EMPTY STATE ================= */
+
+        toggleEmptyState: function (options) {
+            const opts = $.extend({
+                show: false,
+                title: 'No Data Found',
+                description: 'Nothing found to display',
+                icon: '📭'
+            }, options || {});
+
+            if (!this.table) return;
+
+            let $empty = $('#dt-empty-state');
+
+            if ($empty.length === 0) {
+                $empty = $('<div id="dt-empty-state" class="dt-empty-state"></div>').hide();
+                $(this.table.table().node()).before($empty);
+            }
+
+            if (opts.show) {
+                $empty.html(
+                    '<div class="dt-empty-box">' +
+                    '<div class="dt-empty-icon">' + opts.icon + '</div>' +
+                    '<div class="dt-empty-title">' + opts.title + '</div>' +
+                    '<div class="dt-empty-desc">' + opts.description + '</div>' +
+                    '</div>'
+                ).show();
+
+                $(this.table.table().node()).hide();
+            } else {
+                $empty.hide();
+                $(this.table.table().node()).show();
+            }
+        },
+
+        bindEmptyState: function () {
+            var self = this;
+            if (!self.table) return;
+
+            // ajax response
+            self.table.on('xhr.dt', function (e, settings, json) {
+                const data = json && Array.isArray(json.data) ? json.data : [];
+                self.toggleEmptyState({ show: data.length === 0 });
+            });
+
+            // draw (delete / reload)
+            self.table.on('draw.dt', function () {
+                const count = self.table.rows({ filter: 'applied' }).data().length;
+                self.toggleEmptyState({ show: count === 0 });
+            });
         },
 
         /* ================= EVENTS ================= */
@@ -307,6 +360,9 @@
 
                 success: function () {
                     self.table.row(row).remove().draw(false);
+                    self.toggleEmptyState({
+                        show: self.table.rows().data().length === 0
+                    });
                     showToast('Record deleted successfully', 'success');
                     self.isSaving = false;
                 },
