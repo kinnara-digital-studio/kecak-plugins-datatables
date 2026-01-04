@@ -30,7 +30,7 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class DataTablesUtil {
-    protected static final Map<String, String> CLASSNAME_TYPE_MAP = Map.ofEntries(
+    public static final Map<String, String> CLASSNAME_TYPE_MAP = Map.ofEntries(
             Map.entry("org.joget.apps.form.lib.TextField", "text"),
             Map.entry("org.joget.apps.form.lib.TextArea", "textarea"),
             Map.entry("org.joget.apps.form.lib.SelectBox", "select"),
@@ -39,79 +39,6 @@ public class DataTablesUtil {
             Map.entry("org.joget.apps.form.lib.DatePicker", "date"),
             Map.entry("org.joget.apps.form.lib.NumberField", "number")
     );
-
-    public static Map<String, Map<String, Object>> extractFieldMeta(JSONObject jsonForm) throws JSONException {
-        Map<String, Map<String, Object>> result = new HashMap<>();
-        walkElements(jsonForm.getJSONArray("elements"), result);
-        return result;
-    }
-
-    protected static void walkElements(JSONArray elements, Map<String, Map<String, Object>> result) throws JSONException {
-        for (int i = 0; i < elements.length(); i++) {
-            JSONObject el = elements.getJSONObject(i);
-
-            if (el.has("className") && el.getString("className").startsWith("org.joget.apps.form.lib")
-                    || el.getString("className").startsWith("com.kinnarastudio")) {
-
-                String className = el.getString("className");
-                JSONObject props = el.getJSONObject("properties");
-
-                String fieldId = props.optString("id");
-                if (!fieldId.isEmpty()) {
-                    Map<String, Object> meta = new HashMap<>();
-
-                    boolean readonly = "true".equalsIgnoreCase(props.optString("readonly"));
-                    meta.put("readonly", readonly);
-
-                    boolean mandatory = false;
-                    if (props.has("validator")) {
-                        JSONObject validator = props.getJSONObject("validator");
-                        if (validator.has("properties")) {
-                            mandatory = "true".equalsIgnoreCase(
-                                    validator
-                                            .getJSONObject("properties")
-                                            .optString("mandatory")
-                            );
-                        }
-                    }
-                    meta.put("mandatory", mandatory);
-
-                    String type = CLASSNAME_TYPE_MAP.getOrDefault(className, "text");
-                    meta.put("type", type);
-
-                    if ("select".equals(type)) {
-                        meta.put("options", props.optJSONArray("options"));
-                    }
-
-                    boolean isHidden = "true".equalsIgnoreCase(props.optString("hidden"));
-                    meta.put("isHidden", isHidden);
-
-                    if (props.has("calculationLoadBinder")) {
-                        JSONObject calc = props.getJSONObject("calculationLoadBinder");
-                        JSONObject calcProps = calc.optJSONObject("properties");
-
-                        Map<String, Object> calcMeta = new HashMap<>();
-                        calcMeta.put("className", calc.optString("className"));
-                        if (calcProps != null) {
-                            calcMeta.put("equation", calcProps.optString("equation"));
-                            calcMeta.put("debug", calcProps.optString("debug"));
-                        }
-                        if (props.has("variables")) {
-                            calcMeta.put("variables", props.getJSONArray("variables"));
-                        }
-                        meta.put("calculationLoadBinder", calcMeta);
-                    } else {
-                        meta.put("calculationLoadBinder", null);
-                    }
-                    result.put(fieldId, meta);
-                }
-            }
-
-            if (el.has("elements")) {
-                walkElements(el.getJSONArray("elements"), result);
-            }
-        }
-    }
 
     /**
      * Generate plugins

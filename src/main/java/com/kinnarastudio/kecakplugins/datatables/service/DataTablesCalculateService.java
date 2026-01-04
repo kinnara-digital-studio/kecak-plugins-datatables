@@ -1,38 +1,36 @@
-package com.kinnarastudio.kecakplugins.datatables.userview;
+package com.kinnarastudio.kecakplugins.datatables.service;
 
 import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
 import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
 import com.kinnarastudio.kecakplugins.datatables.util.DataTablesUtil;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.service.AppUtil;
-import org.joget.apps.datalist.model.DataList;
 import org.joget.apps.datalist.model.DataListColumnFormatDefault;
-import org.joget.apps.form.model.*;
+import org.joget.apps.form.model.Element;
+import org.joget.apps.form.model.Form;
+import org.joget.apps.form.model.FormData;
+import org.joget.apps.form.model.FormLoadBinder;
 import org.joget.apps.form.service.FormUtil;
-import org.joget.apps.userview.model.UserviewMenu;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
 import org.joget.plugin.base.PluginWebSupport;
 import org.json.JSONException;
 import org.json.JSONObject;
-
 import org.springframework.context.ApplicationContext;
 
+import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
-
 import java.io.IOException;
 import java.math.BigDecimal;
-
-import java.util.*;
-
+import java.util.Locale;
+import java.util.Map;
 
 /**
- * DataTables Menu
+ * DataTables Calculate Service
  * @author tiyojati
  */
-public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
-
+public class DataTablesCalculateService implements PluginWebSupport {
     private transient DataTablesMenuBiz dataTablesMenuBiz;
 
     protected DataTablesMenuBiz dataTablesMenuBiz() {
@@ -42,72 +40,17 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
         return dataTablesMenuBiz;
     }
 
-    private final static String LABEL = "DataTables Menu";
-
-    @Override
-    public String getCategory() {
-        return "Kecak";
+    public String getClassName() {
+        return getClass().getName();
     }
 
+    /**
+     * JSON API for handle datatables calculation load binder
+     */
     @Override
-    public String getIcon() {
-        return "<i class=\"fas fa-table\"></i>";
-    }
+    public void webService(HttpServletRequest request, HttpServletResponse response) throws ServletException, IOException {
+        LogUtil.warn(getClassName(), " Hit DataTables Calculate Service");
 
-    @Override
-    public String getRenderPage() {
-        final ApplicationContext appContext = AppUtil.getApplicationContext();
-        final PluginManager pluginManager = (PluginManager) appContext.getBean("pluginManager");
-        final Map<String, Object> dataModel = new HashMap<>();
-        final String template = "/templates/DataTablesMenu.ftl";
-
-        dataModel.put("className", getClass().getName());
-
-        UserviewMenu userviewMenu = getUserview().getCurrent();
-        final String dataListId = userviewMenu.getPropertyString("dataListId");
-        DataList dataList = dataTablesMenuBiz().getDataList(dataListId);
-        dataModel.put("dataListId", dataListId);
-        dataModel.put("dataList", dataList);
-
-        final AppDefinition appDefinition = AppUtil.getCurrentAppDefinition();
-        dataModel.put("appId", appDefinition.getAppId());
-        dataModel.put("appVersion", appDefinition.getVersion());
-
-        final String formDefIdCreate = userviewMenu.getPropertyString("formDefIdCreate");
-        dataModel.put("formDefIdCreate", formDefIdCreate);
-
-        final JSONObject jsonFormCreate = dataTablesMenuBiz().getJsonForm(formDefIdCreate);
-        dataModel.put("jsonForm", jsonFormCreate.toString());
-        LogUtil.warn(getClassName(), "jsonFormCreate: (" + jsonFormCreate +")");
-
-        final String nonce = dataTablesMenuBiz().generateNonce(appDefinition, jsonFormCreate.toString());
-        dataModel.put("nonce", nonce);
-
-        final String formDefId = userviewMenu.getPropertyString("formDefId");
-        dataModel.put("formDefId", formDefId);
-
-        Map<String, Map<String, Object>> fieldMeta = new HashMap<>();
-        try {
-            fieldMeta = dataTablesMenuBiz().extractFieldMeta(formDefId);
-        } catch (JSONException e) {
-            LogUtil.error(getClassName(), e, e.getMessage());
-        }
-
-        String fieldMetaJson = new JSONObject(fieldMeta).toString();
-        dataModel.put("fieldMeta", fieldMetaJson);
-        LogUtil.warn(getClassName(), "fieldMetaJson DataTables Menu: (" + fieldMetaJson +")");
-
-        final boolean permissionToEdit = dataTablesMenuBiz().getPermissionToEdit(userviewMenu);
-        dataModel.put("permissionToEdit", permissionToEdit);
-
-        String serviceUrl = "/web/json/app/" + appDefinition.getAppId() + "/" + appDefinition.getVersion() + "/plugin/" + getClassName() + "/service";
-        dataModel.put("serviceUrl", serviceUrl);
-
-        return pluginManager.getPluginFreeMarkerTemplate(dataModel, getClassName(), template, "/messages/DataTablesMenu");
-    }
-
-    @Override
-    public void webService(HttpServletRequest request, HttpServletResponse response) throws IOException {
         ApplicationContext appContext = AppUtil.getApplicationContext();
         PluginManager pluginManager = (PluginManager) appContext.getBean("pluginManager");
         AppDefinition appDef = AppUtil.getCurrentAppDefinition();
@@ -173,47 +116,5 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
             LogUtil.error(getClassName(), e, "Application [" + appId + "] version [" + appVersion + "] message [" + e.getMessage() + "]");
             response.sendError(HttpServletResponse.SC_INTERNAL_SERVER_ERROR, e.getMessage());
         }
-    }
-
-    @Override
-    public boolean isHomePageSupported() {
-        return false;
-    }
-
-    @Override
-    public String getDecoratedMenu() {
-        return "";
-    }
-
-    @Override
-    public String getName() {
-        return LABEL;
-    }
-
-    @Override
-    public String getVersion() {
-        PluginManager pluginManager = (PluginManager) AppUtil.getApplicationContext().getBean("pluginManager");
-        ResourceBundle resourceBundle = pluginManager.getPluginMessageBundle(getClassName(), "/version/BuildNumber");
-        return resourceBundle.getString("buildNumber");
-    }
-
-    @Override
-    public String getDescription() {
-        return getClass().getPackage().getImplementationTitle();
-    }
-
-    @Override
-    public String getLabel() {
-        return LABEL;
-    }
-
-    @Override
-    public String getClassName() {
-        return getClass().getName();
-    }
-
-    @Override
-    public String getPropertyOptions() {
-        return AppUtil.readPluginResource(getClass().getName(), "/properties/DataTablesMenu.json", null, true, "/messages/DataTablesMenu");
     }
 }

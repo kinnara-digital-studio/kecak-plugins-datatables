@@ -1,0 +1,83 @@
+[
+    {
+        "title": "@@userview.datatablesinbox.editInbox@@",
+        "properties":
+        [
+            {
+                "name": "id",
+                "label": "ID",
+                "type": "hidden"
+            },
+            {
+                "name": "customId",
+                "label": "@@userview.datatablesinbox.customId@@",
+                "type": "textfield",
+                "regex_validation": "^[a-zA-Z0-9_]+$",
+                "validation_message": "@@userview.datatablesinbox.invalidId@@"
+            },
+            {
+                "name": "label",
+                "label": "@@userview.datatablesinbox.label@@",
+                "type": "textfield",
+                "required": "true",
+                "value": "List"
+            },
+            {
+                "name": "dataListId",
+                "label": "@@userview.datatablesinbox.datalist@@",
+                "type": "selectbox",
+                "required": "true",
+                "options_ajax": "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/datalist/options"
+            },
+            {
+                "name" : "formDefId",
+                "label": "@@userview.datatablesinbox.formedit@@",
+                "type" : "selectbox",
+                "required" : "true",
+                "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
+            },
+            {
+                "name": "assignmentFilter",
+                "label": "@@userview.datatablesinbox.assignmentToDisplay@@",
+                "type": "selectbox",
+                "options":
+                [
+                    {
+                        "value": "all",
+                        "label": "@@userview.datatablesinbox.allAssignments@@"
+                    },
+                    {
+                        "value": "process",
+                        "label": "@@userview.datatablesinbox.assignmentForAProcessOnly@@"
+                    },
+                    {
+                        "value": "activity",
+                        "label": "@@userview.datatablesinbox.assignmentForSelectedActivityOnly@@"
+                    }
+                ]
+            },
+            {
+                "name": "processId",
+                "label": "@@userview.datatablesinbox.process@@",
+                "type": "selectbox",
+                "control_field": "assignmentFilter",
+                "control_value": "^(process|activity)$",
+                "control_use_regex": "true",
+                "required": "true",
+                "options_ajax": "[CONTEXT_PATH]/web/json/app/%s/%s/plugin/%s/service?action=getProcesses"
+            },
+            {
+                "name": "activityDefId",
+                "label": "@@userview.datatablesinbox.activity@@",
+                "type": "multiselect",
+                "size": "10",
+                "control_field": "assignmentFilter",
+                "control_value": "activity",
+                "control_use_regex": "false",
+                "required": "true",
+                "options_ajax_on_change": "processId",
+                "options_ajax": "[CONTEXT_PATH]/web/json/app/%s/%s/plugin/%s/service?action=getActivities"
+            }
+        ]
+    }
+]

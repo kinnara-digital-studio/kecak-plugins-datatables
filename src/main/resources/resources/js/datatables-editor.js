@@ -18,7 +18,7 @@
         SERVICE_URL: null,
 
         // add form
-        formDefId: null,
+        formDefIdCreate: null,
         jsonForm: null,
         nonce: null,
         ADD_BASE_URL: null,
@@ -28,6 +28,8 @@
         calculatedRowData: null,
         isSaving: false,
         fieldCalculateMap: null,
+
+        formDefId: null,
 
         /* ================= INIT ================= */
 
@@ -39,10 +41,12 @@
             this.SERVICE_URL = opts.serviceUrl;
 
             // add form (optional)
-            this.formDefId   = opts.formDefId;
+            this.formDefIdCreate   = opts.formDefIdCreate;
             this.jsonForm    = opts.jsonForm;
             this.nonce       = opts.nonce;
             this.ADD_BASE_URL = opts.addBaseUrl;
+
+            this.formDefId  = opts.formDefId;
 
             this.fieldCalcMap();
             this.bind();
@@ -126,9 +130,9 @@
             if (!this.editingCell || this.isSaving) return;
 
             var self = this;
-            var currentCell = this.editingCell;
+            var currentCell = self.editingCell;
 
-            var nextCell = this.findNextEditableCell(currentCell, reverse);
+            var nextCell = self.findNextEditableCell(currentCell, reverse);
 
             this.save();
 
@@ -183,6 +187,10 @@
             var field = cell.data('field');
             var id    = cell.data('id');
             var meta  = cell.data('meta');
+            var formId = self.formDefId;
+            if(meta.isSubForm){
+                formId = meta.formDefId;
+            }
 
             var row = self.table.row(cell.closest('tr'));
             var rowData = self.calculatedRowData
@@ -200,7 +208,7 @@
             });
 
             $.ajax({
-                url: self.BASE_URL,
+                url: self.BASE_URL + formId,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(body),
@@ -209,9 +217,11 @@
                     $.each(body, function (field, value) {
                         self.commitRowChange(field, value);
                     });
+
                     self.calculatedRowData = null;
                     self.applyValue(cell, newValue, meta);
                     cell.addClass('saved');
+
                     showToast('Changes saved successfully', 'success');
                     self.reset();
                 },
@@ -228,18 +238,8 @@
             var data = row.data();
             data[field] = value;
             row
-               .data(data)
-               .invalidate();
-        },
-
-        commitCalculatedValues: function (row, rowData) {
-            var data = row.data();
-            Object.keys(this.FIELD_META).forEach(function (f) {
-                if (rowData[f] !== undefined) {
-                    data[f] = rowData[f];
-                }
-            });
-            row.data(data).invalidate();
+                .data(data)
+                .invalidate();
         },
 
         cancel: function () {
@@ -298,9 +298,10 @@
         doDelete: function (id, row) {
             var self = this;
             self.isSaving = true;
+            var formId = self.formDefId;
 
             $.ajax({
-                url: self.BASE_URL + '/' + id,
+                url: self.BASE_URL + formId + '/' + id,
                 type: 'DELETE',
 
                 success: function () {
@@ -319,10 +320,10 @@
         /* ================= ADD ROW (JPOPUP) ================= */
 
         openAddForm: function () {
-            if (!this.formDefId) return;
+            if (!this.formDefIdCreate) return;
 
             this.popupForm(
-                this.formDefId,
+                this.formDefIdCreate,
                 JSON.parse(this.jsonForm),
                 this.nonce,
                 {},
@@ -371,6 +372,9 @@
                 (meta.options || []).forEach(function (o) {
                     if (o.value == value) text = o.label;
                 });
+            }
+            else if (meta.formatter) {
+                text = this.formatNumber(value, meta);
             }
 
             cell
@@ -452,15 +456,20 @@
 
             var params = {};
             calc.variables.forEach(function (v) {
-                params[v.variableName] = rowData[v.variableName] || 0;
+                params[v.variableName] = self.normalizeNumber(rowData[v.variableName])|| 0;
             });
+
+            var formId = self.formDefId;
+            if (meta.isSubForm){
+                formId = meta.formDefId;
+            }
 
             $.ajax({
                 url: self.SERVICE_URL,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    formDefId: self.formDefId,
+                    formDefId: formId,
                     fieldId: field,
                     primaryKey: rowData.id,
                     requestParams: params
@@ -490,6 +499,71 @@
                     console.warn('Calculation failed:', field);
                 }
             });
+        },
+
+        normalizeNumber: function (val) {
+            if (val == null) return 0;
+
+            if (typeof val === 'number') return val;
+
+            val = String(val).trim();
+            if (!val) return 0;
+
+            val = val.replace(/\s+/g, '');
+
+            const hasComma = val.indexOf(',') !== -1;
+            const hasDot   = val.indexOf('.') !== -1;
+
+            if (hasComma && hasDot) {
+                if (val.lastIndexOf(',') > val.lastIndexOf('.')) {
+                    // 50.000,00 → EU
+                    val = val.replace(/\./g, '').replace(',', '.');
+                } else {
+                    // 50,000.00 → US
+                    val = val.replace(/,/g, '');
+                }
+            } else if (hasComma) {
+                // 50000,00 → decimal
+                val = val.replace(',', '.');
+            } else {
+                // 50000.00 or 50000
+                val = val;
+            }
+
+            var num = parseFloat(val);
+            return isNaN(num) ? 0 : num;
+        },
+
+        formatNumber: function (value, meta) {
+            if (value == null || value === '') return '';
+
+            var num = this.normalizeNumber(value);
+            if (isNaN(num)) return value;
+
+            var fmt = meta.formatter;
+            if (!fmt) return num;
+
+            var decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
+            var useThousand = fmt.useThousandSeparator === true;
+            var style = fmt.style || 'us'; // us | euro
+
+            var parts = num.toFixed(decimals).split('.');
+            var intPart = parts[0];
+            var decPart = parts[1] || '';
+
+            if (useThousand) {
+                intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
+                    style === 'euro' ? '.' : ','
+                );
+            }
+
+            if (decimals > 0) {
+                return style === 'euro'
+                    ? intPart + ',' + decPart
+                    : intPart + '.' + decPart;
+            }
+
+            return intPart;
         },
 
         findCellByField: function (field, row) {

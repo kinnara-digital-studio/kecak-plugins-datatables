@@ -46,9 +46,6 @@ $(function () {
                 text: '<i class="fa fa-plus"></i> Add',
                 init: function (api, node) {
                     $(node).attr('id', 'btnAddRow');
-                },
-                action: function () {
-                    AddRowManager.openAddForm();
                 }
             } : null,
             {
@@ -68,6 +65,7 @@ $(function () {
                 data: '${c.name}',
                 createdCell: function (td, cellData, rowData) {
                     var meta = FIELD_META['${c.name}'] || {};
+                    var value = rowData?.['${c.name}'] ?? '';
 
                     $(td).attr('data-value', cellData);
 
@@ -80,6 +78,13 @@ $(function () {
                         });
                         $(td).text(label);
                     }
+
+                    if (meta.formatter) {
+                        $(td).text(DataTablesEditor.formatNumber(value, meta));
+                    } else {
+                        $(td).text(value);
+                    }
+
                     $(td)
                         .attr('data-field', '${c.name}')
                         .attr('data-id', rowData.id)
@@ -110,10 +115,11 @@ $(function () {
         table: table,
         fieldMeta: FIELD_META,
         editable: CAN_EDIT,
-        formDefId: '${formDefIdCreate!}',
+        formDefIdCreate: '${formDefIdCreate!}',
+        formDefId: '${formDefId!}',
         jsonForm: '${jsonForm!}',
         nonce: '${nonce!}',
-        baseUrl: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/form/${formDefId!}',
+        baseUrl: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/form/',
         addBaseUrl: '${request.contextPath}/web/app/${appId!}/${appVersion}/form/embed?_submitButtonLabel=Submit',
         serviceUrl: '${request.contextPath}${serviceUrl}'
     });
