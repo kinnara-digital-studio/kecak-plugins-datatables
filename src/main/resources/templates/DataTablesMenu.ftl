@@ -13,8 +13,10 @@
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
 
 <!-- DATATABLES EDITOR -->
-<script src="${request.contextPath}/plugin/${className}/js/datatables-editor.js"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatable-factory.js"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatable-controller.js"></script>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/custom-datatables.css" type="text/css"/>
+<link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/datatables-inbox.css" type="text/css"/>
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 
@@ -24,7 +26,13 @@
             <#list dataList.columns as c>
                 <th>${c.label}</th>
             </#list>
-            <th style="width:10px;">&nbsp;</th>
+            <#-- action column -->
+            <#if menuType == "datalistMenu">
+                <th></th>
+            </#if>
+            <#if menuType == "inboxMenu">
+                <th>Action</th>
+            </#if>
         </tr>
     </thead>
     <tbody></tbody>
@@ -33,99 +41,70 @@
 <script>
 $(function () {
     var FIELD_META = ${fieldMeta};
+    var USER_ID = '${userId}';
     var CAN_EDIT = ${permissionToEdit?string("true","false")};
+    var MENU_TYPE = '${menuType}';
 
-    // ================= INIT TABLE =================
-    var table = $('#inlineTable').DataTable({
-        processing: true,
-        serverSide: false,
-        searching: false,
-        dom: 'Bfrtip',
-        buttons: [
-            CAN_EDIT ? {
-                text: '<i class="fa fa-plus"></i> Add',
-                init: function (api, node) {
-                    $(node).attr('id', 'btnAddRow');
-                }
-            } : null,
-            {
-                text: '<i class="fa fa-refresh "/>',
-                action: function () {
-                    table.ajax.reload();
-                }
-            }
-        ].filter(Boolean),
-        ajax: {
-            url: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/datalist/${dataListId!}',
-            dataSrc: function (json) {
-                const data = (json && Array.isArray(json.data)) ? json.data : [];
-                return data;
-            }
-        },
-        columns: [
-            <#list dataList.columns as c>
-            {
-                data: '${c.name}',
-                createdCell: function (td, cellData, rowData) {
-                    var meta = FIELD_META['${c.name}'] || {};
-                    var value = rowData?.['${c.name}'] ?? '';
-
-                    $(td).attr('data-value', cellData);
-
-                    if (meta.type === 'select') {
-                        var label = cellData;
-                        (meta.options || []).forEach(function (o) {
-                            if (o.value == cellData) {
-                                label = o.label;
-                            }
-                        });
-                        $(td).text(label);
-                    }
-
-                    if (meta.formatter) {
-                        $(td).text(DataTablesEditor.formatNumber(value, meta));
-                    } else {
-                        $(td).text(value);
-                    }
-
-                    $(td)
-                        .attr('data-field', '${c.name}')
-                        .attr('data-id', rowData.id)
-                        .attr('data-type', meta.type || 'text')
-                        .toggleClass('readonly', meta.readonly === true || meta.calculationLoadBinder || meta.isHidden === true)
-                }
-            }<#if c_has_next>,</#if>
-            </#list>,
-            /* ===== ACTION COLUMN ===== */
-            {
-                data: null,
-                orderable: false,
-                searchable: false,
-                className: 'col-action',
-                render: function () {
-                    return `<i class="fa-solid fa-trash cell-delete" title="Delete"></i>`;
-                }
-            }
-        ]
-    });
-
-    if (!CAN_EDIT) {
-        table.column('.col-action').visible(false);
+    var WORKFLOW_VARIABLES = [];
+    if (FIELD_META.status && Array.isArray(FIELD_META.status.options)) {
+        WORKFLOW_VARIABLES = FIELD_META.status.options;
     }
 
-    /* ================= INIT DATATABLES EDITOR ================= */
-    DataTablesEditor.init({
-        table: table,
-        fieldMeta: FIELD_META,
-        editable: CAN_EDIT,
-        formDefIdCreate: '${formDefIdCreate!}',
-        formDefId: '${formDefId!}',
-        jsonForm: '${jsonForm!}',
-        nonce: '${nonce!}',
-        baseUrl: '${request.contextPath}/web/json/data/app/${appId!}/${appVersion}/form/',
-        addBaseUrl: '${request.contextPath}/web/app/${appId!}/${appVersion}/form/embed?_submitButtonLabel=Submit',
-        serviceUrl: '${request.contextPath}${serviceUrl}'
-    });
+    var INLINE_TABLE_OPTS = {
+        fieldMeta   : FIELD_META,
+        menuType    : MENU_TYPE,
+        baseUrl     : '${request.contextPath}',
+        dataUrl     : '${dataUrl}',
+        dataListId  : '${dataListId}',
+
+        assignmentFilter : '${assignmentFilter!}',
+        processId        : '${processId!}',
+        activityDefIds   : '${activityDefIds!}',
+
+        canEdit     : CAN_EDIT,
+
+        columns : [
+            <#list dataList.columns as column>
+            {
+                name  : '${column.name}',
+                label : '${column.label}'
+            }<#if column_has_next>,</#if>
+            </#list>
+        ],
+
+        workflowVariables : WORKFLOW_VARIABLES
+    };
+
+    // ================= INIT TABLE =================
+    var table = DataTableFactory.create(INLINE_TABLE_OPTS);
+
+    var DATATABLES_CONFIG = {}
+    if (MENU_TYPE === "inboxMenu"){
+        DATATABLES_CONFIG.table = table;
+        DATATABLES_CONFIG.fieldMeta = FIELD_META;
+        DATATABLES_CONFIG.editable = true;
+        DATATABLES_CONFIG.editFormDefId = '${editFormDefId!}';
+        DATATABLES_CONFIG.baseUrl = '${request.contextPath}';
+        DATATABLES_CONFIG.calculationUrl = '${calculationUrl}';
+        DATATABLES_CONFIG.editFormUrl = '${editFormUrl!}';
+        DATATABLES_CONFIG.submitTaskUrl = '${submitTaskUrl!}';
+        DATATABLES_CONFIG.userId = USER_ID;
+    }else {
+        DATATABLES_CONFIG.table = table;
+        DATATABLES_CONFIG.fieldMeta = FIELD_META;
+        DATATABLES_CONFIG.editable = CAN_EDIT;
+        DATATABLES_CONFIG.createFormDefId = '${createFormDefId!}';
+        DATATABLES_CONFIG.editFormDefId = '${editFormDefId!}';
+        DATATABLES_CONFIG.baseUrl = '${request.contextPath}';
+        DATATABLES_CONFIG.calculationUrl = '${calculationUrl}';
+        DATATABLES_CONFIG.addFormUrl = '${addFormUrl!}';
+        DATATABLES_CONFIG.editFormUrl = '${editFormUrl!}';
+        DATATABLES_CONFIG.jsonForm = '${jsonForm!}';
+        DATATABLES_CONFIG.nonce = '${nonce!}';
+    }
+
+    /* ================= INIT DATATABLES CONTROLLER ================= */
+    DataTableController.init(DATATABLES_CONFIG);
 
 
 });

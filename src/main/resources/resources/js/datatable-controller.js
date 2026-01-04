@@ -1,27 +1,30 @@
 /**
- * DataTables Editor
- * Inline Edit + Delete + Add (JPopup)
+ * DataTables Controller
  * @author: tiyojati
  */
 (function () {
 
-    if (window.DataTablesEditor) return;
+    if (window.DataTableController) return;
 
-    window.DataTablesEditor = {
+    window.DataTableController = {
 
         /* ================= STATE ================= */
 
         table: null,
-        FIELD_META: null,
-        editable: false,
-        BASE_URL: null,
-        SERVICE_URL: null,
 
-        // add form
-        formDefIdCreate: null,
+        FIELD_META: null,
+        BASE_URL: null,
+        ADD_FORM_URL: null,
+        EDIT_FORM_URL: null,
+        CALCULATION_URL: null,
+        SUBMIT_TASK_URL: null,
+
+        editable: false,
+        userId: null,
+        createFormDefId: null,
+        editFormDefId: null,
         jsonForm: null,
         nonce: null,
-        ADD_BASE_URL: null,
 
         editingCell: null,
         originalRowData: null,
@@ -29,24 +32,23 @@
         isSaving: false,
         fieldCalculateMap: null,
 
-        formDefId: null,
-
         /* ================= INIT ================= */
 
         init: function (opts) {
-            this.table       = opts.table;
-            this.FIELD_META  = opts.fieldMeta;
-            this.editable    = opts.editable;
-            this.BASE_URL    = opts.baseUrl;
-            this.SERVICE_URL = opts.serviceUrl;
+            this.table = opts.table;
+            this.FIELD_META = opts.fieldMeta;
+            this.BASE_URL = opts.baseUrl;
+            this.ADD_FORM_URL = opts.addFormUrl;
+            this.EDIT_FORM_URL = opts.editFormUrl;
+            this.CALCULATION_URL = opts.calculationUrl;
+            this.SUBMIT_TASK_URL = opts.submitTaskUrl;
 
-            // add form (optional)
-            this.formDefIdCreate   = opts.formDefIdCreate;
-            this.jsonForm    = opts.jsonForm;
-            this.nonce       = opts.nonce;
-            this.ADD_BASE_URL = opts.addBaseUrl;
-
-            this.formDefId  = opts.formDefId;
+            this.editable = opts.editable;
+            this.userId = opts.userId;
+            this.createFormDefId = opts.createFormDefId;
+            this.editFormDefId = opts.editFormDefId;
+            this.jsonForm = opts.jsonForm;
+            this.nonce = opts.nonce;
 
             this.fieldCalcMap();
             this.bind();
@@ -152,6 +154,30 @@
             $(document).on('input change', '.cell-editor', function () {
                 self.liveCalculate();
             });
+
+            /* ================= WORKFLOW ACTION ================= */
+            $('#inlineTable')
+                .on('change', '.dt-action-select', function (e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const value = this.value;
+                    if (!value) return;
+
+                    $(this).addClass('selected');
+                });
+
+            $('#inlineTable')
+                .on('click', '.dt-action-submit', function (e) {
+                    e.preventDefault();
+                    e.stopImmediatePropagation();
+
+                    const $wrapper    = $(this).closest('.dt-action-wrapper');
+                    const activityId  = $wrapper.data('activity-id');
+                    const actionValue = $wrapper.find('.dt-action-select').val();
+
+                    self.submitTask(activityId, actionValue);
+                });
         },
 
         /* ================= INLINE EDIT ================= */
@@ -240,7 +266,8 @@
             var field = cell.data('field');
             var id    = cell.data('id');
             var meta  = cell.data('meta');
-            var formId = self.formDefId;
+
+            var formId = self.editFormDefId;
             if(meta.isSubForm){
                 formId = meta.formDefId;
             }
@@ -261,7 +288,7 @@
             });
 
             $.ajax({
-                url: self.BASE_URL + formId,
+                url: self.BASE_URL + self.EDIT_FORM_URL + formId,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(body),
@@ -326,7 +353,6 @@
         /* ================= DELETE ================= */
 
         onDelete: function (row) {
-            debugger;
             var self = this;
             if (!self.editable) return;
 
@@ -352,10 +378,10 @@
         doDelete: function (id, row) {
             var self = this;
             self.isSaving = true;
-            var formId = self.formDefId;
+            var formId = self.createFormDefId;
 
             $.ajax({
-                url: self.BASE_URL + formId + '/' + id,
+                url: self.BASE_URL + self.EDIT_FORM_URL + formId + '/' + id,
                 type: 'DELETE',
 
                 success: function () {
@@ -377,10 +403,10 @@
         /* ================= ADD ROW (JPOPUP) ================= */
 
         openAddForm: function () {
-            if (!this.formDefIdCreate) return;
+            if (!this.createFormDefId) return;
 
             this.popupForm(
-                this.formDefIdCreate,
+                this.createFormDefId,
                 JSON.parse(this.jsonForm),
                 this.nonce,
                 {},
@@ -394,12 +420,12 @@
             var self = this;
 
             var frameId = args.frameId = 'Frame_' + elementId;
-            var formUrl = self.ADD_BASE_URL + '&_mode=add';
+            var formUrl = self.BASE_URL + self.ADD_FORM_URL;
             formUrl += UI.userviewThemeParams();
 
             var params = {
                 _json: JSON.stringify(jsonForm || {}),
-                _callback: 'DataTablesEditor.onSubmitted',
+                _callback: 'DataTableController.onSubmitted',
                 _setting: JSON.stringify(args || {}).replace(/"/g, "'"),
                 _jsonrow: JSON.stringify(data || {}),
                 _nonce: nonce
@@ -444,7 +470,7 @@
             var map = {};
 
             Object.keys(this.FIELD_META).forEach(function (field) {
-                var calc = DataTablesEditor.FIELD_META[field].calculationLoadBinder;
+                var calc = DataTableController.FIELD_META[field].calculationLoadBinder;
                 if (!calc || !calc.variables) return;
 
                 calc.variables.forEach(function (v) {
@@ -506,7 +532,7 @@
 
         calculateField: function (field, row, rowData) {
             var self = this;
-            var meta = this.FIELD_META[field];
+            var meta = self.FIELD_META[field];
             var calc = meta.calculationLoadBinder;
 
             if (!calc || !calc.variables) return;
@@ -516,13 +542,13 @@
                 params[v.variableName] = self.normalizeNumber(rowData[v.variableName])|| 0;
             });
 
-            var formId = self.formDefId;
+            var formId = self.editFormDefId;
             if (meta.isSubForm){
                 formId = meta.formDefId;
             }
 
             $.ajax({
-                url: self.SERVICE_URL,
+                url: self.BASE_URL + self.CALCULATION_URL + '?action=calculate',
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
@@ -621,6 +647,47 @@
             }
 
             return intPart;
+        },
+
+        /* ================= WORKFLOW SUBMIT ================= */
+        submitTask: function (activityId, actionValue) {
+            var self = this;
+
+            if (!activityId) {
+                alert('Activity ID not found');
+                return;
+            }
+
+            if (!actionValue) {
+                alert('Please select an action first');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('status', actionValue);
+
+            $.ajax({
+                url: self.BASE_URL + self.SUBMIT_TASK_URL + activityId + '?loginAs=' + self.userId,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+
+                success: function (res) {
+                    if (res && res.message === 'Success') {
+                        showToast('Submit data successfully', 'success');
+                        if (self.table) {
+                            self.table.ajax.reload(null, false);
+                        }
+                    } else {
+                        showToast('Failed to submit action', 'error');
+                    }
+                },
+
+                error: function () {
+                    showToast('Failed to submit data', 'error');
+                }
+            });
         },
 
         findCellByField: function (field, row) {

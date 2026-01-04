@@ -1,6 +1,6 @@
 [
   {
-    "title": "@@userview.datatables.edit@@",
+    "title": "@@userview.datatablesmenu.edit@@",
     "properties":
     [
       {
@@ -10,45 +10,114 @@
       },
       {
         "name": "customId",
-        "label": "@@userview.datatables.customId@@",
+        "label": "@@userview.datatablesmenu.customId@@",
         "type": "textfield",
         "regex_validation": "^[a-zA-Z0-9_]+$",
-        "validation_message": "@@userview.datatables.invalidId@@"
+        "validation_message": "@@userview.datatablesmenu.invalidId@@"
       },
       {
         "name": "label",
-        "label": "@@userview.datatables.label@@",
+        "label": "@@userview.datatablesmenu.label@@",
         "type": "textfield",
         "required": "true",
-        "value": "DataTables"
+        "value": "datatablesmenu"
       },
       {
         "name" : "dataListId",
-        "label": "@@userview.datatables.datalist@@",
+        "label": "@@userview.datatablesmenu.datalist@@",
         "type" : "selectbox",
         "required" : "true",
         "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/datalist/options"
       },
       {
-        "name" : "formDefIdCreate",
-        "label": "@@userview.datatables.formadd@@",
+        "name" : "editFormDefId",
+        "label": "@@userview.datatablesmenu.formEdit@@",
         "type" : "selectbox",
         "required" : "true",
         "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
       },
       {
-        "name" : "formDefId",
-        "label": "@@userview.datatables.formedit@@",
+        "name": "menuType",
+        "label": "@@userview.datatablesmenu.menuType@@",
+        "type": "selectbox",
+        "required": "true",
+        "options": [
+          {
+            "value": "inboxMenu",
+            "label": "@@userview.datatablesmenu.inboxMenu@@"
+          },
+          {
+            "value": "datalistMenu",
+            "label": "@@userview.datatablesmenu.datalistMenu@@"
+          }
+        ],
+        "value": ""
+      },
+      {
+        "name" : "createFormDefId",
+        "label": "@@userview.datatablesmenu.formAdd@@",
         "type" : "selectbox",
         "required" : "true",
-        "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
+        "options_ajax" : "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options",
+        "control_field": "menuType",
+        "control_value": "datalistMenu",
+        "control_use_regex": "false"
       },
       {
         "name": "permission",
-        "label": "@@userview.datatables.persmissiontoedit@@",
+        "label": "@@userview.datatablesmenu.persmissionToEdit@@",
         "type" : "elementselect",
         "options_ajax" : "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.userview.model.UserviewAccessPermission",
-        "url" : "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions"
+        "url" : "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions",
+        "control_field": "menuType",
+        "control_value": "datalistMenu",
+        "control_use_regex": "false"
+      },
+      {
+        "name": "assignmentFilter",
+        "label": "@@userview.datatablesmenu.assignmentToDisplay@@",
+        "type": "selectbox",
+        "control_field": "menuType",
+        "control_value": "inboxMenu",
+        "control_use_regex": "false",
+        "options":
+        [
+          {
+            "value": "all",
+            "label": "@@userview.datatablesmenu.allAssignments@@"
+          },
+          {
+            "value": "process",
+            "label": "@@userview.datatablesmenu.assignmentForAProcessOnly@@"
+          },
+          {
+            "value": "activity",
+            "label": "@@userview.datatablesmenu.assignmentForSelectedActivityOnly@@"
+          }
+        ],
+        "value": "all"
+      },
+      {
+        "name": "processId",
+        "label": "@@userview.datatablesmenu.process@@",
+        "type": "selectbox",
+        "control_field": "assignmentFilter",
+        "control_value": "^(process|activity)$",
+        "control_use_regex": "true",
+        "required": "true",
+        "options_ajax": "[CONTEXT_PATH]/web/json/app/%s/%s/plugin/%s/service?action=getProcesses"
+      },
+      {
+        "name": "activityDefId",
+        "label": "@@userview.datatablesmenu.activity@@",
+        "type": "multiselect",
+        "size": "10",
+        "control_field": "assignmentFilter",
+        "control_value": "activity",
+        "control_use_regex": "false",
+        "required": "true",
+        "options_ajax_on_change": "processId",
+        "options_ajax": "[CONTEXT_PATH]/web/json/app/%s/%s/plugin/%s/service?action=getActivities"
       }
     ]
   }

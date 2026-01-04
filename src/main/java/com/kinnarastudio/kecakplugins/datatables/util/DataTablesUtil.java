@@ -14,7 +14,6 @@ import org.joget.apps.form.service.FormUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
 import org.joget.plugin.property.model.PropertyEditable;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 

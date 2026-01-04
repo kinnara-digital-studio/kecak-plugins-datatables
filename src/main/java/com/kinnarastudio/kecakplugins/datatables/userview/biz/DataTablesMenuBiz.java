@@ -1,6 +1,7 @@
 package com.kinnarastudio.kecakplugins.datatables.userview.biz;
 
 import com.kinnarastudio.commons.Try;
+import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
 import com.kinnarastudio.kecakplugins.datatables.util.DataTablesUtil;
 import com.kinnarastudio.kecakplugins.datatables.util.Validator;
 import org.joget.apps.app.dao.DatalistDefinitionDao;
@@ -10,11 +11,9 @@ import org.joget.apps.app.model.DatalistDefinition;
 import org.joget.apps.app.model.FormDefinition;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.datalist.model.DataList;
+import org.joget.apps.datalist.model.DataListColumnFormatDefault;
 import org.joget.apps.datalist.service.DataListService;
-import org.joget.apps.form.model.Element;
-import org.joget.apps.form.model.Form;
-import org.joget.apps.form.model.FormData;
-import org.joget.apps.form.model.FormRowSet;
+import org.joget.apps.form.model.*;
 import org.joget.apps.form.service.FormService;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.apps.userview.model.UserviewMenu;
@@ -29,6 +28,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.context.ApplicationContext;
 
+import javax.servlet.http.HttpServletResponse;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Stream;
@@ -325,5 +325,49 @@ public class DataTablesMenuBiz {
         }
 
         return json;
+    }
+
+    public JSONObject calculationLoadBinder(JSONObject body, AppDefinition appDefinition, PluginManager pluginManager) throws RestApiException, JSONException {
+        String formDefId = body.getString("formDefId");
+        String fieldId = body.getString("fieldId");
+        String primaryKey = body.optString("primaryKey");
+
+        Form form = this.generateForm(formDefId, appDefinition);
+        if (form == null) {
+            throw new RestApiException(HttpServletResponse.SC_BAD_REQUEST, "Form [" + formDefId + "] cannot be defined");
+        }
+
+        JSONObject requestParameters = body.optJSONObject("requestParams");
+        LogUtil.info(getClassName(), "requestParameters value : " + requestParameters.toString());
+        FormData formData = this.generateFormData(primaryKey, requestParameters);
+
+        Element element = FormUtil.findElement(fieldId, form, formData);
+
+        String currencyField = element.getPropertyString("currencyRefField");
+        Map<String, Object> calculationLoadBinder = (Map<String, Object>) element.getProperty("calculationLoadBinder");
+
+        BigDecimal value;
+
+        FormLoadBinder loadBinderPlugins = DataTablesUtil.getPluginObject(calculationLoadBinder, pluginManager);
+        if (loadBinderPlugins != null) {
+            // value is calculated by calculation load binder
+            element.setLoadBinder(loadBinderPlugins);
+            value = this.executeCalculation(element, formData);
+
+        } else {
+            // value from user input
+            Locale locale = DataTablesUtil.getLocale(requestParameters.optString(currencyField));
+            value = DataTablesUtil.determineNumber(body.optString("formatValue"), locale);
+        }
+
+        Map<String, Object> formatterPlugin = (Map<String, Object>) element.getProperty("formatterPlugin");
+        DataListColumnFormatDefault formatter = DataTablesUtil.getPluginObject(formatterPlugin, pluginManager);
+        String formattedValue = formatter == null ? value.toString()
+                : DataTablesUtil.reformatValue(fieldId, value.toString(), form, formData, formatter);
+
+        JSONObject data = new JSONObject();
+        data.put("value", value.toPlainString());
+        data.put("mask_value", formattedValue);
+        return data;
     }
 }
