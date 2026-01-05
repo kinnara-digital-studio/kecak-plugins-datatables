@@ -294,16 +294,17 @@
                 data: JSON.stringify(body),
 
                 success: function () {
-                    $.each(body, function (field, value) {
-                        self.commitRowChange(field, value);
-                    });
-
-                    self.calculatedRowData = null;
-                    self.applyValue(cell, newValue, meta);
-                    cell.addClass('saved');
-
-                    showToast('Changes saved successfully', 'success');
-                    self.reset();
+                    self.table.ajax.reload(null, false);
+                    // $.each(body, function (field, value) {
+                    //     self.commitRowChange(field, value);
+                    // });
+                    //
+                    // self.calculatedRowData = null;
+                    // self.applyValue(cell, newValue, meta);
+                    // cell.addClass('saved');
+                    //
+                    // showToast('Changes saved successfully', 'success');
+                    // self.reset();
                 },
 
                 error: function () {
@@ -453,7 +454,7 @@
 
             if (meta.type === 'select') {
                 (meta.options || []).forEach(function (o) {
-                    if (o.value == value) text = o.label;
+                    if (o.value === value) text = o.label;
                 });
             }
             else if (meta.formatter) {
