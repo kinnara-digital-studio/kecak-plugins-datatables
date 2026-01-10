@@ -1,0 +1,68 @@
+[
+    {
+        "title": "@@datatableselement.editdatatableselement@@",
+        "properties": [
+            {
+                "name": "id",
+                "label": "@@datatableselement.id@@",
+                "type": "textfield",
+                "required": "True",
+                "regex_validation": "^[a-zA-Z0-9_]+$",
+                "validation_message": "@@datatableselement.invalidId@@"
+            },
+            {
+                "name": "label",
+                "label": "@@datatableselement.label@@",
+                "type": "textfield",
+                "value": "Grid"
+            },
+            {
+                "name": "formDefId",
+                "label": "@@datatableselement.formId@@",
+                "type": "selectbox",
+                "options_ajax": "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options",
+                "required": "True"
+            },
+            {
+                "name": "options",
+                "label": "@@datatableselement.columns@@",
+                "description": "@@datatableselement.columns.desc@@",
+                "type": "grid",
+                "required": "True",
+                "columns": [
+                    {
+                        "key": "value",
+                        "label": "@@datatableselement.value@@"
+                    },
+                    {
+                        "key": "label",
+                        "label": "@@datatableselement.label@@"
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "title": "@@datatableselement.validationAndData@@",
+        "properties": [
+            {
+                "label": "@@datatableselement.dataBinder@@",
+                "type": "header"
+            },
+            {
+                "name": "loadBinder",
+                "label": "@@datatableselement.loadBinder@@",
+                "type": "elementselect",
+                "options_ajax": "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormLoadMultiRowElementBinder",
+                "url": "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions"
+            },
+            {
+                "name": "storeBinder",
+                "label": "@@datatableselement.storeBinder@@",
+                "type": "elementselect",
+                "options_ajax": "[CONTEXT_PATH]/web/property/json/getElements?classname=org.joget.apps.form.model.FormStoreMultiRowElementBinder",
+                "url": "[CONTEXT_PATH]/web/property/json[APP_PATH]/getPropertyOptions"
+            }
+        ]
+    }
+]

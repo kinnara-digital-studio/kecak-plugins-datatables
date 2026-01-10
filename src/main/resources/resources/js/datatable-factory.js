@@ -12,32 +12,53 @@
         /* ================= CONSTANT ================= */
         MENU_TYPE: {
             DATALIST: 'datalistMenu',
-            INBOX: 'inboxMenu'
+            INBOX: 'inboxMenu',
+            INLINE_GRID: 'inlineGrid'
         },
+
+        /* ================= STATE ================= */
+        menuType: null,
 
         /* ================= CREATE TABLE ================= */
         create: function (opts) {
             if (!opts || !opts.menuType) {
                 throw new Error('menuType is required');
             }
-            opts.menuType = this.normalizeMenuType(opts.menuType);
-            var table = $('#inlineTable').DataTable({
+            this.menuType = this.normalizeMenuType(opts.menuType);
+
+            var isInlineGrid = this.menuType === this.MENU_TYPE.INLINE_GRID;
+
+            var dtOpts = {
                 processing: true,
                 serverSide: false,
                 searching: false,
-                dom: 'Bfrtip',
+                columns: this.buildColumns(opts)
+            };
 
-                ajax: this.buildAjax(opts),
-                columns: this.buildColumns(opts),
-                buttons: this.buildButtons(opts)
-            });
+            if (!isInlineGrid) {
+                dtOpts.dom = 'Bfrtip';
+                dtOpts.ajax = this.buildAjax(opts);
+                dtOpts.buttons = this.buildButtons(opts);
+            } else {
+                dtOpts.dom = 't';
+                dtOpts.ordering = false;
+                dtOpts.data = opts.data || [];
+            }
 
-            return table;
+            var $table = opts.tableElement
+                ? $(opts.tableElement)
+                : $('#inlineTable');
+
+            return $table.DataTable(dtOpts);
         },
 
         /* ================= AJAX ================= */
         buildAjax: function (opts) {
-            if (opts.menuType === this.MENU_TYPE.DATALIST) {
+            if (this.menuType === this.MENU_TYPE.INLINE_GRID) {
+                return null;
+            }
+
+            if (this.menuType === this.MENU_TYPE.DATALIST) {
                 return {
                     url: opts.baseUrl + opts.dataUrl,
 
@@ -47,7 +68,7 @@
                 };
             }
 
-            if (opts.menuType === this.MENU_TYPE.INBOX) {
+            if (this.menuType === this.MENU_TYPE.INBOX) {
                 return {
                     url: opts.baseUrl + opts.dataUrl,
 
@@ -72,15 +93,19 @@
             var cols = [];
 
             opts.columns.forEach(function (col) {
-                cols.push(self.buildDataColumn(col, opts.menuType, opts.fieldMeta));
+                cols.push(self.buildDataColumn(col, self.menuType, opts.fieldMeta));
             });
 
             // ===== ACTION COLUMN =====
-            if (opts.menuType === self.MENU_TYPE.DATALIST) {
+            if (self.menuType === self.MENU_TYPE.DATALIST) {
                 cols.push(self.buildDeleteColumn());
             }
 
-            if (opts.menuType === self.MENU_TYPE.INBOX) {
+            if (self.menuType === self.MENU_TYPE.INLINE_GRID) {
+                cols.push(self.buildInlineGridDeleteColumn());
+            }
+
+            if (self.menuType === self.MENU_TYPE.INBOX) {
                 cols.push(self.buildWorkflowActionColumn(opts));
             }
 
@@ -89,7 +114,7 @@
 
         buildDataColumn: function (col, menuType, fieldMeta) {
             return {
-                data: menuType === this.MENU_TYPE.DATALIST ? col.name : null,
+                data: menuType === this.MENU_TYPE.DATALIST || menuType === this.MENU_TYPE.INLINE_GRID ? col.name : null,
 
                 render:
                     menuType === this.MENU_TYPE.INBOX
@@ -100,7 +125,7 @@
                         }
                         : undefined,
 
-                createdCell: this.createCellRenderer(col.name, fieldMeta)
+                createdCell: this.createCellRenderer(col.name, fieldMeta, menuType)
             };
         },
 
@@ -113,6 +138,19 @@
                 width: '5px',
                 render: function () {
                     return '<i class="fa-solid fa-trash cell-delete" title="Delete"></i>';
+                }
+            };
+        },
+
+        buildInlineGridDeleteColumn: function () {
+            return {
+                data: null,
+                orderable: false,
+                searchable: false,
+                className: 'dt-action-col',
+                width: '5px',
+                render: function () {
+                    return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
                 }
             };
         },
@@ -158,7 +196,7 @@
         buildButtons: function (opts) {
             var buttons = [];
 
-            if (opts.menuType !== this.MENU_TYPE.DATALIST) {
+            if (this.menuType !== this.MENU_TYPE.DATALIST) {
                 return buttons;
             }
 
@@ -190,7 +228,7 @@
         },
 
         /* ================= CELL RENDERER ================= */
-        createCellRenderer: function (fieldName, fieldMeta) {
+        createCellRenderer: function (fieldName, fieldMeta, menuType) {
             return function (td, cellData, rowData) {
                 var meta = fieldMeta?.[fieldName] || {};
                 var value = rowData?.[fieldName] ?? '';
@@ -204,9 +242,15 @@
                     });
                     $(td).text(label);
                 }else if (meta.formatter) {
-                    $(td).text(
-                        DataTableController.formatNumber(value, meta)
-                    );
+                    if (menuType === 'inlineGrid'){
+                        $(td).text(
+                            InlineGridController.formatNumber(value, meta)
+                        );
+                    }else {
+                        $(td).text(
+                            DataTableController.formatNumber(value, meta)
+                        );
+                    }
                 } else {
                     $(td).text(value);
                 }

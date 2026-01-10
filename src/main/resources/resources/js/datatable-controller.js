@@ -294,17 +294,16 @@
                 data: JSON.stringify(body),
 
                 success: function () {
-                    self.table.ajax.reload(null, false);
-                    // $.each(body, function (field, value) {
-                    //     self.commitRowChange(field, value);
-                    // });
-                    //
-                    // self.calculatedRowData = null;
-                    // self.applyValue(cell, newValue, meta);
-                    // cell.addClass('saved');
-                    //
-                    // showToast('Changes saved successfully', 'success');
-                    // self.reset();
+                    $.each(body, function (field, value) {
+                        self.commitRowChange(field, value);
+                    });
+
+                    self.calculatedRowData = null;
+                    self.applyValue(cell, newValue, meta);
+                    cell.addClass('saved');
+
+                    showToast('Changes saved successfully', 'success');
+                    self.reset();
                 },
 
                 error: function () {
