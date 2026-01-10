@@ -7,7 +7,7 @@
         <link href="${request.contextPath}/plugin/${className}/css/inline-grid-datatables.css" rel="stylesheet" type="text/css" />
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/core/js/jquery.dataTables.min.js"></script>
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatable-factory.js"></script>
-        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/inline-grid-controller.js"></script>
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatable-grid-controller.js"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 
         <div id="${formGridId}" name="${elementParamName!}" class="datatable-form-wrapper datatable-card grid form-element">

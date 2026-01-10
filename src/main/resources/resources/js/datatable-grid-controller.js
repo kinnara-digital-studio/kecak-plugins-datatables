@@ -1,5 +1,5 @@
 /**
- * Inline Grid DataTables Controller
+ * DataTable Grid Controller
  * @author: tiyojati
  */
 (function () {
@@ -174,7 +174,7 @@
             var self = this;
             var meta = self.FIELD_META[field] || {};
 
-            /* ================= RAW VALUE (UNTUK DATA & JSON) ================= */
+            /* ================= RAW VALUE (FOR DATA & JSON) ================= */
             var rawValue = newValue;
 
             if (meta.formatter || meta.type === 'number') {
@@ -185,8 +185,8 @@
             var rowData = self.table.row(rowIndex).data();
             rowData[field] = rawValue;
 
-            /* ================= APPLY DISPLAY (FORMAT ONLY) ================= */
-            self.applyValue($td, rawValue, meta); // 👈 formatter di sini
+            /* ================= APPLY DISPLAY ================= */
+            self.applyValue($td, rawValue, meta);
 
             /* ================= SYNC JSON (RAW ONLY) ================= */
             self.syncJsonRow(rowIndex, field, rawValue);
