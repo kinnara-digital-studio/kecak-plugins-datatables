@@ -13,8 +13,8 @@
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
 
 <!-- DATATABLES EDITOR -->
-<script src="${request.contextPath}/plugin/${className}/js/datatable-factory.js"></script>
-<script src="${request.contextPath}/plugin/${className}/js/datatable-controller.js"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatables-controller.js"></script>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/custom-datatables.css" type="text/css"/>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/datatables-inbox.css" type="text/css"/>
 

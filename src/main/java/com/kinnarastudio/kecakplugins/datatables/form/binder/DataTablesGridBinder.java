@@ -217,6 +217,6 @@ public class DataTablesGridBinder extends FormBinder
     public String getPropertyOptions() {
         Object[] arguments = {getClassName()};
         return AppUtil.readPluginResource(getClass().getName(),
-                "/properties/form/DataTablesBinder.json", arguments, true);
+                "/properties/form/DataTablesGridBinder.json", arguments, true);
     }
 }
