@@ -3,11 +3,13 @@
     display: none !important;
 }
 
+/* Khusus untuk kolom Action agar isinya rapat di tengah */
 .dt-action-wrapper {
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
-    gap: 6px !important;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 5px; /* Jarak antara dropdown dan tombol */
+    width: 100%;
 }
 
 .dt-action-select {
@@ -38,8 +40,11 @@
     margin: 0 !important;
 }
 
-td.col-action {
-    white-space: nowrap !important;
+.dt-action-inbox {
+    width: 165px !important;
+    text-align: center;
+    overflow: hidden;
+    white-space: nowrap;
 }
 
 .dt-action-submit {

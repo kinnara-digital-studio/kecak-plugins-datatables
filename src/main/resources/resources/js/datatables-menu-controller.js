@@ -4,9 +4,9 @@
  */
 (function () {
 
-    if (window.DataTableController) return;
+    if (window.DataTablesMenuController) return;
 
-    window.DataTableController = {
+    window.DataTablesMenuController = {
 
         /* ================= STATE ================= */
 
@@ -314,9 +314,24 @@
         },
 
         commitRowChange: function (field, value) {
+            debugger;
             var row = this.table.row(this.editingCell.closest('tr'));
             var data = row.data();
-            data[field] = value;
+            var commitValue = value;
+            var meta = this.FIELD_META[field];
+            if (meta){
+                if (meta.type === 'select') {
+                    (meta.options || []).forEach(function (o) {
+                        if (o.value === value) commitValue = o.label;
+                    });
+                }
+                else if (meta.formatter) {
+                    commitValue = this.formatNumber(value, meta);
+                }
+            }
+
+            data[field] = commitValue;
+
             row
                 .data(data)
                 .invalidate();
@@ -425,7 +440,7 @@
 
             var params = {
                 _json: JSON.stringify(jsonForm || {}),
-                _callback: 'DataTableController.onSubmitted',
+                _callback: 'DataTablesController.onSubmitted',
                 _setting: JSON.stringify(args || {}).replace(/"/g, "'"),
                 _jsonrow: JSON.stringify(data || {}),
                 _nonce: nonce
@@ -470,7 +485,7 @@
             var map = {};
 
             Object.keys(this.FIELD_META).forEach(function (field) {
-                var calc = DataTableController.FIELD_META[field].calculationLoadBinder;
+                var calc = DataTablesMenuController.FIELD_META[field].calculationLoadBinder;
                 if (!calc || !calc.variables) return;
 
                 calc.variables.forEach(function (v) {
@@ -691,13 +706,20 @@
         },
 
         findCellByField: function (field, row) {
+            if (!row) return null;
+
+            var rowNode = row.node();
+            if (!rowNode) return null;
+
             var cell = null;
-            row.nodes().to$().find('td').each(function () {
+
+            $(rowNode).find('td').each(function () {
                 if ($(this).data('field') === field) {
                     cell = $(this);
                     return false;
                 }
             });
+
             return cell;
         }
     };

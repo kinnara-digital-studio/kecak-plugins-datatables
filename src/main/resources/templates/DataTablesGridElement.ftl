@@ -3,9 +3,9 @@
 <div class="form-cell datatables-grid" ${elementMetaData!}>
     <#assign formGridId = "formgrid_" + elementParamName! + "_row_" >
 
-        <link href="${request.contextPath}/plugin/${className}/core/css/jquery.dataTables.min.css" rel="stylesheet" type="text/css" />
-        <link href="${request.contextPath}/plugin/${className}/css/inline-grid-datatables.css" rel="stylesheet" type="text/css" />
-        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/core/js/jquery.dataTables.min.js"></script>
+        <link href="${request.contextPath}/plugin/${className}/core/css/dataTables.min.css" rel="stylesheet" type="text/css" />
+        <link href="${request.contextPath}/plugin/${className}/css/datatables-grid.css" rel="stylesheet" type="text/css" />
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/core/js/dataTables.min.js"></script>
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-grid-controller.js"></script>
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
@@ -25,7 +25,7 @@
                             ${col.label!}
                         </th>
                     </#list>
-                        <th style="width:10px;"></th>
+                        <th></th>
 
                 </tr>
                 </thead>
@@ -55,7 +55,7 @@
                     </#list>
                 ];
 
-                var table = DataTableFactory.create({
+                var table = DataTablesFactory.create({
                     menuType: 'inlineGrid',
                     tableElement: tableEl,
                     fieldMeta: FIELD_META,
@@ -63,7 +63,7 @@
                     data: []
                 });
 
-                InlineGridController.init({
+                DataTablesGridController.init({
                     table: table,
                     columns: columns,
                     elementId: '${elementId!}',

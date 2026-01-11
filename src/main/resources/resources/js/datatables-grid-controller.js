@@ -1,12 +1,12 @@
 /**
- * DataTable Grid Controller
+ * DataTables Grid Controller
  * @author: tiyojati
  */
 (function () {
 
-    if (window.InlineGridController) return;
+    if (window.DataTablesGridController) return;
 
-    window.InlineGridController = {
+    window.DataTablesGridController = {
 
         /* ================= STATE ================= */
         table: null,
@@ -45,6 +45,7 @@
 
             this.fieldCalcMap();
             this.bind();
+            this.bindEmptyState();
             this.updateRowCount();
         },
 
@@ -60,6 +61,63 @@
             });
 
             return map;
+        },
+
+        /* ================= EMPTY STATE ================= */
+        toggleEmptyState: function (options) {
+            const opts = $.extend({
+                show: false,
+                title: 'Start by adding a row',
+                description: 'Add your first row to begin working with this grid.',
+                icon: '✨'
+            }, options || {});
+
+            if (!this.table) return;
+
+            const $table = $(this.table.table().node());
+            const $tbody = $table.find('tbody');
+
+            let $empty = $('#dt-empty-state');
+
+            if ($empty.length === 0) {
+                $empty = $('<div id="dt-empty-state" class="dt-empty-state"></div>').hide();
+                $table.after($empty);
+            }
+
+            if (opts.show) {
+                $empty.html(
+                    '<div class="dt-empty-box">' +
+                    '<span class="dt-empty-icon">' + opts.icon + '</span>' +
+                    '<span class="dt-empty-title">' + opts.title + '</span>' +
+                    '<span class="dt-empty-desc">' + opts.description + '</span>' +
+                    '</div>'
+                ).show();
+
+                $tbody.hide();
+            } else {
+                $empty.hide();
+                $tbody.show();
+            }
+        },
+
+        bindEmptyState: function () {
+            var self = this;
+            if (!self.table) return;
+
+            function evaluateEmpty() {
+                const total = self.table.rows().count();
+                self.toggleEmptyState({ show: total === 0 });
+            }
+
+            // Client-side / add / delete / reload
+            self.table.on('draw.dt', function () {
+                evaluateEmpty();
+            });
+
+            // 🔥 INITIAL CHECK (INI YANG HILANG)
+            setTimeout(function () {
+                evaluateEmpty();
+            }, 0);
         },
 
         /* ================= EVENTS ================= */
@@ -170,15 +228,15 @@
             });
         },
 
-        commit: function ($td, field, rowIndex, newValue) {
+        commit: function ($td, field, rowIndex, inputValue) {
             var self = this;
             var meta = self.FIELD_META[field] || {};
 
             /* ================= RAW VALUE (FOR DATA & JSON) ================= */
-            var rawValue = newValue;
+            var rawValue = inputValue;
 
             if (meta.formatter || meta.type === 'number') {
-                rawValue = self.normalizeNumber(newValue);
+                rawValue = self.normalizeNumber(inputValue);
             }
 
             /* ================= UPDATE ROW DATA (RAW) ================= */
@@ -192,7 +250,7 @@
             self.syncJsonRow(rowIndex, field, rawValue);
 
             /* ================= LIVE CALCULATE ================= */
-            self.liveCalculate(field, rowIndex, rowData);
+            self.triggerCalculate(field, rowIndex, rowData);
         },
 
         syncJsonRow: function (rowIndex, field, value) {
@@ -263,7 +321,19 @@
             this.fieldCalculateMap = map;
         },
 
-        liveCalculate: function (field, rowIndex, rowData) {
+        /**
+         * Triggers dependent field calculations after the user has finished typing
+         * and the value has been committed.
+         *
+         * This function is intended to be called after an input is finalized
+         * (e.g. on Enter, Tab). It looks up all fields that depend on
+         * the given source field and executes their calculation logic.
+         *
+         * @param {String} field     The source field name that was updated
+         * @param {Number} rowIndex The row index in the DataTable
+         * @param {Object} rowData  The current row data object
+         */
+        triggerCalculate: function (field, rowIndex, rowData) {
             var self = this;
 
             var calcFields = self.fieldCalculateMap[field];
@@ -272,6 +342,38 @@
             calcFields.forEach(function (targetField) {
                 self.calculateField(targetField, rowIndex, rowData);
             });
+        },
+
+        /**
+         * Performs real-time calculation while the user is typing in an inline editor.
+         *
+         * This function is called on input/change events to continuously update
+         * dependent calculated fields without waiting for the value to be committed.
+         * The value is normalized, synchronized to the JSON row state, and then
+         * propagated to any dependent calculation fields.
+         *
+         * Intended for immediate feedback during data entry.
+         */
+        liveCalculate: function () {
+            if (!this.editingCell) return;
+
+            var self = this;
+            var idx = self.table.cell(this.editingCell).index();
+            if (!idx) return;
+
+            var rowIndex = idx.row;
+            var field    = self.FIELD_MAP[idx.column];
+            if (!field) return;
+
+            var rowData = self.table.row(rowIndex).data();
+            if (!rowData) return;
+
+            var val = this.editingCell.find('.cell-editor').val();
+            rowData[field] = self.normalizeNumber(val);
+
+            self.syncJsonRow(rowIndex, field, rowData[field]);
+
+            self.triggerCalculate(field, rowIndex, rowData);
         },
 
         calculateField: function (field, rowIndex, rowData) {

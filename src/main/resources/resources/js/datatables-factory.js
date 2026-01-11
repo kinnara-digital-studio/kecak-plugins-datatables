@@ -1,13 +1,13 @@
 /**
- * DataTable Factory
- * Build DataTable instance based on menuType
+ * DataTables Factory
+ * Build DataTables instance based on menuType
  * @author: tiyojati
  */
 (function () {
 
-    if (window.DataTableFactory) return;
+    if (window.DataTablesFactory) return;
 
-    window.DataTableFactory = {
+    window.DataTablesFactory = {
 
         /* ================= CONSTANT ================= */
         MENU_TYPE: {
@@ -25,31 +25,101 @@
                 throw new Error('menuType is required');
             }
             this.menuType = this.normalizeMenuType(opts.menuType);
-
             var isInlineGrid = this.menuType === this.MENU_TYPE.INLINE_GRID;
 
             var dtOpts = {
                 processing: true,
                 serverSide: false,
                 searching: false,
+                autoWidth: false,
                 columns: this.buildColumns(opts)
             };
 
+            /* ================= DATA SOURCE ================= */
             if (!isInlineGrid) {
-                dtOpts.dom = 'Bfrtip';
+                dtOpts.pageLength = 20;
+                dtOpts.lengthChange = false;
                 dtOpts.ajax = this.buildAjax(opts);
-                dtOpts.buttons = this.buildButtons(opts);
+                dtOpts.layout = {
+                    topStart: () => $('.dt-toolbar'),
+                    topEnd: null,
+                    bottomStart: 'info',
+                    bottomEnd: 'paging'
+                };
             } else {
-                dtOpts.dom = 't';
-                dtOpts.ordering = false;
                 dtOpts.data = opts.data || [];
+                dtOpts.ordering = false;
+                dtOpts.info = false;
+                dtOpts.paging = false;
+                dtOpts.lengthChange = false;
+                dtOpts.language = {
+                    emptyTable: '',
+                    zeroRecords: ''
+                };
+                dtOpts.layout = {
+                    topStart: null,
+                    topEnd: null,
+                    bottomStart: null,
+                    bottomEnd: null
+                };
             }
 
-            var $table = opts.tableElement
-                ? $(opts.tableElement)
-                : $('#inlineTable');
+            var tableEl = opts.tableElement || '#inlineTable';
 
-            return $table.DataTable(dtOpts);
+            /* ================= INIT  ================= */
+            var table = new DataTable(tableEl, dtOpts);
+
+            /* ================= TOGGLE INFO & PAGING ================= */
+            if (!isInlineGrid) {
+                this.toggleDtInfoPaging(table);
+
+                table.on('draw', function () {
+                    DataTablesFactory.toggleDtInfoPaging(table);
+                });
+            }
+
+            /* ================= STORE INSTANCE ================= */
+            this.table = table;
+
+            /* ================= INIT CUSTOM TOOLBAR ================= */
+            if (!isInlineGrid) {
+                this.initCustomToolbar(opts);
+            }
+
+            return table;
+        },
+
+        initCustomToolbar: function (opts) {
+            var self = this;
+
+            if (opts.canEdit === true) {
+                $('#btnAddRow')
+                    .show()
+                    .off('click')
+                    .on('click', function () {
+                        self.openAddForm();
+                    });
+            } else {
+                $('#btnAddRow').hide();
+            }
+
+            $('#btnReload')
+                .off('click')
+                .on('click', function () {
+                    if (self.table) {
+                        self.table.ajax.reload(null, false);
+                    }
+                });
+        },
+
+        toggleDtInfoPaging: function (table) {
+            var info = table.page.info();
+            var hasData = info.recordsDisplay > 0;
+
+            var $wrapper = $(table.table().container());
+
+            $wrapper.find('.dt-info').toggle(hasData);
+            $wrapper.find('.dt-paging').toggle(hasData);
         },
 
         /* ================= AJAX ================= */
@@ -134,10 +204,10 @@
                 data: null,
                 orderable: false,
                 searchable: false,
-                className: 'col-action',
-                width: '5px',
+                className: 'dt-action-col',
+                width: '40px',
                 render: function () {
-                    return '<i class="fa-solid fa-trash cell-delete" title="Delete"></i>';
+                    return '<span class="fa-solid fa-trash cell-delete" title="Delete"></span>';
                 }
             };
         },
@@ -148,7 +218,7 @@
                 orderable: false,
                 searchable: false,
                 className: 'dt-action-col',
-                width: '5px',
+                width: '40px',
                 render: function () {
                     return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
                 }
@@ -161,8 +231,8 @@
                 data: null,
                 orderable: false,
                 searchable: false,
-                className: 'col-action',
-                width: '30px',
+                className: 'dt-action-inbox',
+                width: '165px',
                 render: function (data, type, row) {
                     if (!row || !row.id) return '';
 
@@ -192,34 +262,6 @@
             };
         },
 
-        /* ================= BUTTONS ================= */
-        buildButtons: function (opts) {
-            var buttons = [];
-
-            if (this.menuType !== this.MENU_TYPE.DATALIST) {
-                return buttons;
-            }
-
-            if (opts.canEdit === true) {
-                buttons.push({
-                    text: '<i class="fa fa-plus"></i> Add',
-                    init: function (api, node) {
-                        $(node).attr('id', 'btnAddRow');
-                    }
-                });
-            }
-
-            buttons.push({
-                text: '<i class="fa fa-refresh "/>',
-                action: function () {
-                    api = $('#inlineTable').DataTable();
-                    api.ajax.reload();
-                }
-            });
-
-            return buttons;
-        },
-
         /* ================= NORMALIZER ================= */
         normalizeMenuType: function (type) {
             return Object.values(this.MENU_TYPE).includes(type)
@@ -244,11 +286,11 @@
                 }else if (meta.formatter) {
                     if (menuType === 'inlineGrid'){
                         $(td).text(
-                            InlineGridController.formatNumber(value, meta)
+                            DataTablesGridController.formatNumber(value, meta)
                         );
                     }else {
                         $(td).text(
-                            DataTableController.formatNumber(value, meta)
+                            DataTablesMenuController.formatNumber(value, meta)
                         );
                     }
                 } else {
