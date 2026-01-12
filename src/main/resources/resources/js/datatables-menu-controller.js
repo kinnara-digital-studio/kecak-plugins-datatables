@@ -9,7 +9,6 @@
     window.DataTablesMenuController = {
 
         /* ================= STATE ================= */
-
         table: null,
 
         FIELD_META: null,
@@ -33,7 +32,6 @@
         fieldCalculateMap: null,
 
         /* ================= INIT ================= */
-
         init: function (opts) {
             this.table = opts.table;
             this.FIELD_META = opts.fieldMeta;
@@ -56,7 +54,6 @@
         },
 
         /* ================= EMPTY STATE ================= */
-
         toggleEmptyState: function (options) {
             const opts = $.extend({
                 show: false,
@@ -94,13 +91,11 @@
             var self = this;
             if (!self.table) return;
 
-            // ajax response
             self.table.on('xhr.dt', function (e, settings, json) {
                 const data = json && Array.isArray(json.data) ? json.data : [];
                 self.toggleEmptyState({ show: data.length === 0 });
             });
 
-            // draw (delete / reload)
             self.table.on('draw.dt', function () {
                 const count = self.table.rows({ filter: 'applied' }).data().length;
                 self.toggleEmptyState({ show: count === 0 });
@@ -112,7 +107,6 @@
         bind: function () {
             var self = this;
 
-            // inline edit
             $('#inlineTable tbody')
                 .on('click', 'td[data-field]', function () {
                     self.onCellClick($(this));
@@ -122,7 +116,6 @@
                     self.onDelete($(this).closest('tr'));
                 });
 
-            // editor key
             $(document).on('keydown', '.cell-editor', function (e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
@@ -131,7 +124,6 @@
                 if (e.key === 'Tab') {
                     e.preventDefault();
                     self.save();
-                    self.saveAndMoveNext(e.shiftKey === true);
                 }
                 if (e.key === 'Escape') {
                     e.preventDefault();
@@ -139,21 +131,20 @@
                 }
             });
 
-            // click outside cancel
             $(document).on('mousedown', function (e) {
                 if (!self.editingCell || self.isSaving) return;
                 if ($(e.target).closest('.cell-editor, td').length) return;
                 self.cancel();
             });
 
-            // add button
             $(document).on('click', '#btnAddRow', function () {
                 self.openAddForm();
             });
 
-            $(document).on('input change', '.cell-editor', function () {
-                self.liveCalculate();
-            });
+            // this function for live input calculation
+            // $(document).on('input change', '.cell-editor', function () {
+            //     self.liveCalculate();
+            // });
 
             /* ================= WORKFLOW ACTION ================= */
             $('#inlineTable')
@@ -181,7 +172,6 @@
         },
 
         /* ================= INLINE EDIT ================= */
-
         onCellClick: function (cell) {
             if (this.editable === false) return;
 
@@ -205,57 +195,23 @@
                 .focus();
         },
 
-        saveAndMoveNext: function (reverse) {
-            if (!this.editingCell || this.isSaving) return;
-
-            var self = this;
-            var currentCell = self.editingCell;
-
-            var nextCell = self.findNextEditableCell(currentCell, reverse);
-
-            this.save();
-
-            setTimeout(function () {
-                if (nextCell) {
-                    nextCell.trigger('click');
-                }
-            }, 150);
-        },
-
-        findNextEditableCell: function (cell, reverse) {
-            var row = cell.closest('tr');
-            var cells = row.find('td[data-field]');
-            var index = cells.index(cell);
-            var step = reverse ? -1 : 1;
-
-            for (var i = index + step; i >= 0 && i < cells.length; i += step) {
-                var next = $(cells[i]);
-                var field = next.data('field');
-                var meta  = this.FIELD_META[field];
-
-                if (!meta) continue;
-                if (meta.readonly === true) continue;
-                if (meta.calculationLoadBinder) continue;
-                if (meta.isHidden === true) continue;
-
-                return next;
-            }
-            return null;
-        },
-
         save: function () {
             if (!this.editingCell || this.isSaving) return;
 
+            var self = this;
             var editor = this.editingCell.find('.cell-editor');
             var newValue = editor.val();
 
-            if (newValue === this.originalValue) {
-                this.reset();
-                showToast('No changes detected', 'info');
-                return;
-            }
+            this.liveCalculate();
 
-            this.doSave(newValue);
+            setTimeout(function() {
+                if (newValue === this.originalValue) {
+                    this.reset();
+                    showToast('No changes detected', 'info');
+                    return;
+                }
+                self.doSave(newValue);
+            }, 300);
         },
 
         doSave: function (newValue) {
@@ -314,7 +270,6 @@
         },
 
         commitRowChange: function (field, value) {
-            debugger;
             var row = this.table.row(this.editingCell.closest('tr'));
             var data = row.data();
             var commitValue = value;
