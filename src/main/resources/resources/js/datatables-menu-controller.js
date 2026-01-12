@@ -215,7 +215,6 @@
         },
 
         doSave: function (newValue) {
-            debugger;
             var self = this;
             self.isSaving = true;
 
