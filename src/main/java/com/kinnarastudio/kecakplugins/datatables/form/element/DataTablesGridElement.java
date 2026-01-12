@@ -1,27 +1,37 @@
 package com.kinnarastudio.kecakplugins.datatables.form.element;
 
 import com.kinnarastudio.commons.Declutter;
+import com.kinnarastudio.commons.Try;
+import com.kinnarastudio.commons.jsonstream.JSONStream;
+import com.kinnarastudio.commons.jsonstream.model.JSONObjectEntry;
 import com.kinnarastudio.kecakplugins.datatables.userview.DataTablesMenu;
 import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.service.AppUtil;
+import org.joget.apps.form.lib.Grid;
 import org.joget.apps.form.model.*;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
 import org.joget.plugin.base.PluginWebSupport;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import org.kecak.apps.form.model.DataJsonControllerHandler;
 
+import javax.annotation.Nonnull;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class DataTablesGridElement extends Element implements FormBuilderPaletteElement, PluginWebSupport, Declutter {
     private final static String LABEL = "DataTables Grid Element";
     private final static String CATEGORY = "Kecak";
+    protected Map<FormData, FormRowSet> cachedRowSet = new HashMap<>();
 
     private transient DataTablesMenuBiz dataTablesMenuBiz;
 
@@ -89,12 +99,160 @@ public class DataTablesGridElement extends Element implements FormBuilderPalette
         String calculationUrl = "/web/json/app/" + appId + "/" + appVersion + "/plugin/" + DataTablesMenu.class.getName() + "/service";
         dataModel.put("calculationUrl", calculationUrl);
 
+        FormRowSet rows = getRows(formData);
+        LogUtil.warn(getClassName(), "DataTablesGridElement rows [" + rows.toString() + "]");
+        dataModel.put("dataRows", rows);
+
         return FormUtil.generateElementHtml(
                 this,
                 formData,
                 "DataTablesGridElement.ftl",
                 dataModel
         );
+    }
+
+    /**
+     * Get rows
+     *
+     * @param formData
+     * @return
+     */
+    protected FormRowSet getRows(FormData formData) {
+        if (!cachedRowSet.containsKey(formData)) {
+            String id = getPropertyString(FormUtil.PROPERTY_ID);
+            String param = FormUtil.getElementParameterName(this);
+
+            FormRowSet rowSet;
+            String json = getPropertyString(FormUtil.PROPERTY_VALUE);
+            if (json != null && !json.isEmpty()) {
+                try {
+                    rowSet = parseFormRowSetFromJson(json);
+                } catch (Exception ex) {
+                    LogUtil.error(Grid.class.getName(), ex, "Error parsing grid JSON");
+                    rowSet = new FormRowSet();
+                }
+            } else {
+                // try to get data from DataJsonController
+                if (formData.getRequestParameter(DataJsonControllerHandler.PARAMETER_DATA_JSON_CONTROLLER) != null) {
+                    rowSet = Optional.of(formData)
+                            .map(fd -> fd.getRequestParameterValues(param))
+                            .stream()
+                            .flatMap(Arrays::stream)
+                            .map(Try.onFunction(JSONObject::new))
+                            .map(this::convertJsonToFormRow)
+                            .collect(Collectors.toCollection(FormRowSet::new));
+
+                }
+
+                // try to get data as jsonrow_[index], most likely came from web
+                else {
+                    rowSet = Optional.of(formData)
+                            .map(FormData::getRequestParams)
+                            .map(Map::entrySet)
+                            .stream()
+                            .flatMap(Collection::stream)
+                            .filter(e -> e.getKey().equals(param) || e.getKey().contains(param + "_jsonrow"))
+                            .map(Map.Entry::getValue)
+                            .filter(Objects::nonNull)
+                            .flatMap(Arrays::stream)
+                            .filter(this::isNotEmpty)
+                            .map(Try.onFunction(JSONObject::new))
+                            .map(this::convertJsonToFormRow)
+                            .collect(Collectors.toCollection(FormRowSet::new));
+                }
+            }
+
+            final FormRowSet binderRowSet = formData.getLoadBinderData(this);
+            if (!FormUtil.isFormSubmitted(this, formData) && binderRowSet != null) {
+                if (!binderRowSet.isMultiRow()) {
+                    if (!binderRowSet.isEmpty()) {
+                        final FormRow row = binderRowSet.get(0);
+                        final String jsonValue = row.getProperty(id);
+                        rowSet = this.parseFormRowSetFromJson(jsonValue);
+                    }
+                } else {
+                    rowSet = this.convertFormRowToJson(binderRowSet);
+                }
+            }
+            cachedRowSet.put(formData, rowSet);
+        }
+        return cachedRowSet.get(formData);
+    }
+
+    protected FormRowSet parseFormRowSetFromJson(String json) {
+        final FormRowSet rowSet = Optional.ofNullable(json)
+                .map(String::trim)
+                .map(Try.onFunction(JSONArray::new))
+                .map(jsonArray -> JSONStream.of(jsonArray, Try.onBiFunction(JSONArray::getJSONObject)))
+                .orElseGet(Stream::empty)
+                .map(jsonRow -> JSONStream.of(jsonRow, Try.onBiFunction(JSONObject::getString))
+                        .collect(() -> {
+                            final FormRow row = new FormRow();
+                            row.setProperty("jsonrow", jsonRow.toString());
+                            return row;
+                        }, (r, e) -> r.setProperty(e.getKey(), e.getValue()), FormRow::putAll))
+                .collect(FormRowSet::new, FormRowSet::add, FormRowSet::addAll);
+
+        rowSet.setMultiRow(true);
+
+        return rowSet;
+    }
+
+    @Nonnull
+    protected FormRow convertJsonToFormRow(JSONObject jsonObject) {
+        FormRow newRow = new FormRow();
+        newRow.setProperty("jsonrow", jsonObject.toString());
+
+        JSONStream.of(jsonObject, Try.onBiFunction(JSONObject::getString))
+                .forEach(Try.onConsumer(entry -> {
+                    String fieldName = entry.getKey();
+                    if (fieldName.equals(FormUtil.PROPERTY_TEMP_FILE_PATH)) {
+                        Optional.of(entry)
+                                .map(JSONObjectEntry::getValue)
+                                .map(Try.onFunction(JSONObject::new))
+                                .map(j -> JSONStream.of(j, Try.onBiFunction(JSONObject::getString)))
+                                .orElseGet(Stream::empty)
+                                .forEach(Try.onConsumer(e -> {
+                                    String[] value = Optional.of(e)
+                                            .map(Map.Entry::getValue)
+                                            .map(Try.onFunction(JSONArray::new))
+                                            .map(s -> JSONStream.of(s, Try.onBiFunction(JSONArray::getString)))
+                                            .orElseGet(Stream::empty).toArray(String[]::new);
+                                    newRow.putTempFilePath(e.getKey(), value);
+                                }));
+
+                    } else {
+                        String value = entry.getValue();
+                        newRow.setProperty(fieldName, value);
+                    }
+                }));
+
+        return newRow;
+    }
+
+    protected FormRowSet convertFormRowToJson(FormRowSet oriRowSet) {
+        final FormRowSet rowSet = Optional.ofNullable(oriRowSet)
+                .map(Collection::stream)
+                .orElseGet(Stream::empty)
+                .map(Try.onFunction(row -> {
+                    final JSONObject jsonObject = new JSONObject();
+                    final FormRow newRow = new FormRow();
+
+                    for (Map.Entry<Object, Object> entry : row.entrySet()) {
+                        String key = entry.getKey().toString();
+                        String value = entry.getValue().toString();
+
+                        jsonObject.put(key, value);
+                        newRow.setProperty(key, value);
+                    }
+
+                    newRow.setProperty("jsonrow", jsonObject.toString());
+                    return newRow;
+                }))
+                .collect(FormRowSet::new, FormRowSet::add, FormRowSet::addAll);
+
+        rowSet.setMultiRow(true);
+        return rowSet;
     }
 
     protected String getPropertyFormDefId() {

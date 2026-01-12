@@ -167,12 +167,8 @@
             });
 
             // ===== ACTION COLUMN =====
-            if (self.menuType === self.MENU_TYPE.DATALIST) {
+            if (self.menuType === self.MENU_TYPE.DATALIST || self.menuType === self.MENU_TYPE.INLINE_GRID) {
                 cols.push(self.buildDeleteColumn());
-            }
-
-            if (self.menuType === self.MENU_TYPE.INLINE_GRID) {
-                cols.push(self.buildInlineGridDeleteColumn());
             }
 
             if (self.menuType === self.MENU_TYPE.INBOX) {
@@ -207,7 +203,7 @@
                 className: 'dt-action-col',
                 width: '40px',
                 render: function () {
-                    return '<span class="fa-solid fa-trash cell-delete" title="Delete"></span>';
+                    return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
                 }
             };
         },

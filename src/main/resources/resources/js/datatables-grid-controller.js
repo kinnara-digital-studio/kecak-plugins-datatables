@@ -3,31 +3,25 @@
  * @author: tiyojati
  */
 (function () {
-
     if (window.DataTablesGridController) return;
 
     window.DataTablesGridController = {
-
         /* ================= STATE ================= */
         table: null,
         tableEl: null,
-
-        FIELD_META: null,
-        FIELD_MAP: null,
-        elementId: null,
+        FIELD_META: {},
+        FIELD_MAP: [],
         elementParamName: null,
         formGridId: null,
-
         BASE_URL: null,
         CALCULATION_URL: null,
-        fieldCalculateMap: null,
+        fieldCalculateMap: {},
         formDefId: null,
+        editingCell: null,
 
-        /* ================= INIT ================= */
-        init: function (opts) {
-            if (!opts || !opts.table) {
-                throw new Error('DataTable instance is required');
-            }
+        /* ================= CORE INIT ================= */
+        init: function (opts, dataRows) {
+            if (!opts || !opts.table) throw new Error('DataTable instance is required');
 
             this.table            = opts.table;
             this.tableEl          = $(this.table.table().node());
@@ -39,28 +33,37 @@
             this.BASE_URL         = opts.baseUrl;
             this.CALCULATION_URL  = opts.calculationUrl;
 
-            this.FIELD_MAP = opts.fieldMap
-                ? opts.fieldMap
-                : this.buildFieldMapFromColumns(opts.columns);
+            this.FIELD_MAP = opts.fieldMap || this._buildFieldMap(opts.columns);
 
-            this.fieldCalcMap();
-            this.bind();
+            this._initFieldCalcMap();
+            this.bindEvents();
             this.bindEmptyState();
+
+            if (dataRows && dataRows.length > 0) {
+                this.loadExistingData(dataRows);
+            } else {
+                this.updateRowCount();
+            }
+        },
+
+        loadExistingData: function (data) {
+            const cleanedData = data.map(item => {
+                if (typeof item === 'string') {
+                    try { return JSON.parse(item); } catch (e) { return {}; }
+                }
+                if (item && typeof item.jsonrow === 'string') {
+                    try { return JSON.parse(item.jsonrow); } catch (e) { return item; }
+                }
+                return item;
+            });
+
+            this.table.rows.add(cleanedData).draw(false);
+            this.reindexRows();
             this.updateRowCount();
         },
 
-        buildFieldMapFromColumns: function (columns) {
-            var map = [];
-
-            (columns || []).forEach(function (col) {
-                if (col && col.name) {
-                    map.push(col.name);
-                } else {
-                    map.push(null);
-                }
-            });
-
-            return map;
+        _buildFieldMap: function (columns) {
+            return (columns || []).map(col => (col && col.name ? col.name : null));
         },
 
         /* ================= EMPTY STATE ================= */
@@ -76,7 +79,6 @@
 
             const $table = $(this.table.table().node());
             const $tbody = $table.find('tbody');
-
             let $empty = $('#dt-empty-state');
 
             if ($empty.length === 0) {
@@ -92,7 +94,6 @@
                     '<span class="dt-empty-desc">' + opts.description + '</span>' +
                     '</div>'
                 ).show();
-
                 $tbody.hide();
             } else {
                 $empty.hide();
@@ -103,435 +104,265 @@
         bindEmptyState: function () {
             var self = this;
             if (!self.table) return;
-
             function evaluateEmpty() {
                 const total = self.table.rows().count();
                 self.toggleEmptyState({ show: total === 0 });
             }
-
-            // Client-side / add / delete / reload
-            self.table.on('draw.dt', function () {
-                evaluateEmpty();
-            });
-
-            // 🔥 INITIAL CHECK (INI YANG HILANG)
-            setTimeout(function () {
-                evaluateEmpty();
-            }, 0);
+            self.table.on('draw.dt', () => evaluateEmpty());
+            setTimeout(() => evaluateEmpty(), 0);
         },
 
         /* ================= EVENTS ================= */
-        bind: function () {
-            var self = this;
-
-            $(document).on('click', '.dt-add-row', function () {
-                self.addRow();
-            });
-
-            self.tableEl.on('click', '.dt-row-delete', function () {
+        bindEvents: function () {
+            const self = this;
+            $(document).on('click', '.dt-add-row', () => self.addRow());
+            this.tableEl.on('click', '.dt-row-delete', function () {
                 self.deleteRow($(this).closest('tr'));
             });
-
-            self.tableEl.on('click', 'tbody td', function () {
+            this.tableEl.on('click', 'tbody td', function () {
                 self.onCellClick($(this));
             });
+            $(document).on('keydown', '.cell-editor', function (e) {
+                const $editor = $(this);
+                const $td = $editor.closest('td');
+                const idx = self.table.cell($td).index();
+                const field = self.FIELD_MAP[idx.column];
 
-            // $(document).on('input change', '.cell-editor', function () {
-            //     self.liveCalculate();
-            // });
+                if (e.key === 'Enter' || e.key === 'Tab') {
+                    e.preventDefault();
+                    self.commit($td, field, idx.row, $editor.val());
+                    self.editingCell = null;
+                    if (e.key === 'Tab') self._focusNextCell($td, e.shiftKey);
+                }
+                if (e.key === 'Escape') self.cancelEdit($td);
+            });
+            $(document).on('mousedown', function (e) {
+                if (!self.editingCell) return;
+                if (!$(e.target).closest('.cell-editor, .editing').length) {
+                    self.cancelEdit(self.editingCell);
+                }
+            });
         },
 
-        /* ================= ADD ROW ================= */
+        /* ================= ROW OPERATIONS ================= */
         addRow: function () {
-            var self = this;
-
-            var emptyRow = {};
-            self.FIELD_MAP.forEach(function (f) {
-                if (f) emptyRow[f] = '';
-            });
-
-            var node = self.table.row.add(emptyRow).draw(false).node();
-            var rowIndex = self.table.row(node).index();
-
-            $(node).attr('id', self.formGridId + '_row_' + rowIndex);
-
-            self.appendJsonRow(node, rowIndex);
-            self.updateRowCount();
-        },
-
-        appendJsonRow: function (row, rowIndex) {
-            var json = {};
-            Object.keys(this.FIELD_META).forEach(function (k) {
-                json[k] = '';
-            });
-
-            $(row).append(
-                '<td style="display:none;">' +
-                '<textarea name="' +
-                this.elementParamName + '_jsonrow_' + rowIndex +
-                '">' +
-                JSON.stringify(json) +
-                '</textarea></td>'
-            );
-        },
-
-        updateRowCount: function () {
-            $('#rowCount').val(this.table.rows().count());
-        },
-
-        /* ================= DELETE ================= */
-        deleteRow: function (row) {
-            if (!confirm('Delete row?')) return;
-
-            this.table.row(row).remove().draw(false);
+            const emptyData = {};
+            this.FIELD_MAP.forEach(f => { if (f) emptyData[f] = ''; });
+            this.table.row.add(emptyData).draw(false);
+            this.reindexRows();
             this.updateRowCount();
         },
 
-        /* ================= INLINE EDIT ================= */
-        onCellClick: function ($td) {
-            var self = this;
+        _appendJsonRowMarkup: function (row, rowIndex, existingData) {
+            // Gunakan data baris yang ada (jika sedang reindex baris lama)
+            const json = existingData || {};
+            Object.keys(this.FIELD_META).forEach(k => { if (!(k in json)) json[k] = ''; });
 
-            if ($td.hasClass('editing')) return;
-            if ($td.find('input,textarea,select').length) return;
+            $(row).append(`
+                <td style="display:none;">
+                    <textarea name="${this.elementParamName}_jsonrow_${rowIndex}">
+                        ${JSON.stringify(json)}
+                    </textarea>
+                </td>
+            `);
+        },
 
-            var idx = self.table.cell($td).index();
-            if (!idx) return;
+        deleteRow: function (row) {
+            const self = this;
+            showConfirm({
+                title: 'Delete Confirmation',
+                message: 'Are you sure you want to delete this row?'
+            }, () => {
+                self.table.row(row).remove().draw(false);
+                self.reindexRows();
+                self.updateRowCount();
+            });
+        },
 
-            var field = self.FIELD_MAP[idx.column];
-            if (!field) return;
+        reindexRows: function () {
+            const self = this;
+            const $rows = this.tableEl.find('tbody tr');
 
-            var meta = self.FIELD_META[field];
-            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
+            $rows.each(function (newIndex) {
+                const $row = $(this);
+                $row.attr('id', `${self.formGridId}_row_${newIndex}`);
+                $row.find('td:first').text(newIndex + 1);
 
-            /* ================= SET EDITING CELL (INI YANG HILANG) ================= */
-            self.editingCell = $td;
+                let $ta = $row.find(`textarea[name*="_jsonrow_"]`);
+                // Ambil data asli dari DataTable agar data dari backend tidak hilang
+                const rowData = self.table.row($row).data();
 
-            var rowIndex = idx.row;
-            var rowData  = self.table.row(rowIndex).data();
-            var oldValue = rowData[field] ?? '';
-
-            $td.addClass('editing');
-
-            var $editor = self.createInlineEditor($td, oldValue, meta);
-
-            $editor.on('keydown', function (e) {
-                if (e.key === 'Enter' || e.key === 'Tab') {
-                    e.preventDefault();
-                    self.commit($td, field, rowIndex, $editor.val());
-                    self.editingCell = null;
-                }
-
-                if (e.key === 'Escape') {
-                    $td.removeClass('editing').text(oldValue);
-                    self.editingCell = null;
+                if ($ta.length === 0) {
+                    self._appendJsonRowMarkup($row, newIndex, rowData);
+                } else {
+                    $ta.attr('name', `${self.elementParamName}_jsonrow_${newIndex}`);
                 }
             });
+            this.table.rows().invalidate();
+        },
+
+        /* ================= INLINE EDITING ================= */
+        onCellClick: function ($td) {
+            if (this.editingCell && !this.editingCell.is($td)) this.cancelEdit(this.editingCell);
+            if ($td.hasClass('editing') || $td.find('.cell-editor').length) return;
+
+            const idx = this.table.cell($td).index();
+            const field = this.FIELD_MAP[idx.column];
+            const meta = this.FIELD_META[field];
+            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
+
+            this.editingCell = $td;
+            const rowData = this.table.row(idx.row).data();
+            const value = rowData[field] ?? '';
+            $td.data('old-value', value).addClass('editing');
+
+            const $editor = this.buildEditorMarkup(meta.type, value, meta);
+            $td.empty().append($editor);
+            $editor.focus();
         },
 
         commit: function ($td, field, rowIndex, inputValue) {
-            var self = this;
-            var meta = self.FIELD_META[field] || {};
+            const meta = this.FIELD_META[field] || {};
+            let rawValue = (meta.formatter || meta.type === 'number') ? this.normalizeNumber(inputValue) : inputValue;
 
-            /* ================= RAW VALUE (FOR DATA & JSON) ================= */
-            var rawValue = inputValue;
-
-            if (meta.formatter || meta.type === 'number') {
-                rawValue = self.normalizeNumber(inputValue);
-            }
-
-            /* ================= UPDATE ROW DATA (RAW) ================= */
-            var rowData = self.table.row(rowIndex).data();
+            const rowData = this.table.row(rowIndex).data();
             rowData[field] = rawValue;
 
-            /* ================= APPLY DISPLAY ================= */
-            self.applyValue($td, rawValue, meta);
-
-            /* ================= SYNC JSON (RAW ONLY) ================= */
-            self.syncJsonRow(rowIndex, field, rawValue);
-
-            /* ================= LIVE CALCULATE ================= */
-            self.triggerCalculate(field, rowIndex, rowData);
+            this.applyValueToCell($td, rawValue, meta);
+            this.syncJsonRow(rowIndex, field, rawValue);
+            this.triggerCalculate(field, rowIndex, rowData);
         },
 
-        syncJsonRow: function (rowIndex, field, value) {
-            var $ta = $('textarea[name="' +
-                this.elementParamName + '_jsonrow_' + rowIndex + '"]');
-
-            if (!$ta.length) return;
-
-            try {
-                var json = JSON.parse($ta.val());
-                json[field] = value;
-                $ta.val(JSON.stringify(json));
-            } catch (e) {
-                console.error('jsonrow sync failed', e);
-            }
+        cancelEdit: function ($td) {
+            if (!$td) return;
+            const oldValue = $td.data('old-value');
+            const idx = this.table.cell($td).index();
+            const field = this.FIELD_MAP[idx.column];
+            const meta = this.FIELD_META[field] || {};
+            this.applyValueToCell($td, oldValue, meta);
+            this.editingCell = null;
+            $td.removeClass('editing');
         },
 
-        /* ================= EDITOR ================= */
-        createInlineEditor: function ($td, value, meta) {
-            var $editor = this.buildEditor(meta.type, value, meta);
-
-            $td.empty().append($editor);
-            $editor.focus();
-
-            return $editor;
-        },
-
-        buildEditor: function (type, value, meta) {
-            value = value ?? '';
-
-            switch (type) {
-                case 'textarea':
-                    return $('<textarea class="cell-editor"/>').val(value);
-
-                case 'select':
-                    var $s = $('<select class="cell-editor"/>');
-                    (meta.options || []).forEach(function (o) {
-                        $('<option/>').val(o.value).text(o.label).appendTo($s);
+        /* ================= CALCULATION ENGINE ================= */
+        _initFieldCalcMap: function () {
+            this.fieldCalculateMap = {};
+            Object.keys(this.FIELD_META).forEach(field => {
+                const calc = this.FIELD_META[field].calculationLoadBinder;
+                if (calc?.variables) {
+                    calc.variables.forEach(v => {
+                        this.fieldCalculateMap[v.variableName] = this.fieldCalculateMap[v.variableName] || [];
+                        this.fieldCalculateMap[v.variableName].push(field);
                     });
-                    return $s.val(value);
-
-                case 'number':
-                    return $('<input type="number" class="cell-editor"/>').val(value);
-
-                case 'date':
-                    return $('<input type="date" class="cell-editor"/>').val(value);
-
-                default:
-                    return $('<input type="text" class="cell-editor"/>').val(value);
-            }
-        },
-
-        /* ================= CALCULATION ================= */
-        fieldCalcMap: function () {
-            var map = {};
-            var self = this;
-
-            Object.keys(this.FIELD_META).forEach(function (field) {
-                var calc = self.FIELD_META[field].calculationLoadBinder;
-                if (!calc || !calc.variables) return;
-
-                calc.variables.forEach(function (v) {
-                    map[v.variableName] = map[v.variableName] || [];
-                    map[v.variableName].push(field);
-                });
+                }
             });
-
-            this.fieldCalculateMap = map;
         },
 
-        /**
-         * Triggers dependent field calculations after the user has finished typing
-         * and the value has been committed.
-         *
-         * This function is intended to be called after an input is finalized
-         * (e.g. on Enter, Tab). It looks up all fields that depend on
-         * the given source field and executes their calculation logic.
-         *
-         * @param {String} field     The source field name that was updated
-         * @param {Number} rowIndex The row index in the DataTable
-         * @param {Object} rowData  The current row data object
-         */
         triggerCalculate: function (field, rowIndex, rowData) {
-            var self = this;
-
-            var calcFields = self.fieldCalculateMap[field];
-            if (!calcFields || !calcFields.length) return;
-
-            calcFields.forEach(function (targetField) {
-                self.calculateField(targetField, rowIndex, rowData);
-            });
+            const targets = this.fieldCalculateMap[field];
+            if (targets) targets.forEach(target => this.calculateFieldRemote(target, rowIndex, rowData));
         },
 
-        /**
-         * Performs real-time calculation while the user is typing in an inline editor.
-         *
-         * This function is called on input/change events to continuously update
-         * dependent calculated fields without waiting for the value to be committed.
-         * The value is normalized, synchronized to the JSON row state, and then
-         * propagated to any dependent calculation fields.
-         *
-         * Intended for immediate feedback during data entry.
-         */
-        liveCalculate: function () {
-            if (!this.editingCell) return;
+        calculateFieldRemote: function (field, rowIndex, rowData) {
+            const self = this;
+            const meta = this.FIELD_META[field];
+            const calc = meta?.calculationLoadBinder;
+            if (!calc) return;
 
-            var self = this;
-            var idx = self.table.cell(this.editingCell).index();
-            if (!idx) return;
-
-            var rowIndex = idx.row;
-            var field    = self.FIELD_MAP[idx.column];
-            if (!field) return;
-
-            var rowData = self.table.row(rowIndex).data();
-            if (!rowData) return;
-
-            var val = this.editingCell.find('.cell-editor').val();
-            rowData[field] = self.normalizeNumber(val);
-
-            self.syncJsonRow(rowIndex, field, rowData[field]);
-
-            self.triggerCalculate(field, rowIndex, rowData);
-        },
-
-        calculateField: function (field, rowIndex, rowData) {
-            var self = this;
-
-            var meta = self.FIELD_META[field];
-            var calc = meta && meta.calculationLoadBinder;
-            if (!calc || !calc.variables) return;
-
-            var params = {};
-            calc.variables.forEach(function (v) {
-                params[v.variableName] =
-                    self.normalizeNumber(rowData[v.variableName]) || 0;
-            });
+            const params = {};
+            calc.variables.forEach(v => { params[v.variableName] = this.normalizeNumber(rowData[v.variableName]); });
 
             $.ajax({
-                url: self.BASE_URL + self.CALCULATION_URL + '?action=calculate',
+                url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    formDefId: self.formDefId,
+                    formDefId: this.formDefId,
                     fieldId: field,
                     primaryKey: rowData.id || 'id',
                     requestParams: params
                 }),
-
                 success: function (res) {
-                    if (!res || res.value == null) return;
-
+                    if (res?.value == null) return;
                     rowData[field] = res.value;
                     self.syncJsonRow(rowIndex, field, res.value);
-
-                    var colIndex = self.FIELD_MAP.indexOf(field);
-                    if (colIndex !== -1) {
-                        var cell = $(self.table.cell(rowIndex, colIndex).node());
-                        if (!cell.hasClass('editing')) {
-                            self.applyValue(cell, res.value, meta);
-                        }
-                    }
-
-                    var next = self.fieldCalculateMap[field] || [];
-                    next.forEach(function (f) {
-                        self.calculateField(f, rowIndex, rowData);
-                    });
-                },
-
-                error: function () {
-                    console.warn('InlineGrid calculation failed:', field);
+                    const colIdx = self.FIELD_MAP.indexOf(field);
+                    const $cell = $(self.table.cell(rowIndex, colIdx).node());
+                    if (!$cell.hasClass('editing')) self.applyValueToCell($cell, res.value, meta);
+                    self.triggerCalculate(field, rowIndex, rowData);
                 }
             });
         },
 
-        applyValue: function ($cell, value, meta) {
-            var self = this;
-            var display = value ?? '';
+        /* ================= HELPERS ================= */
+        syncJsonRow: function (rowIndex, field, value) {
+            const rowNode = this.table.row(rowIndex).node();
+            const $ta = $(rowNode).find(`textarea[name*="_jsonrow_"]`);
+            if (!$ta.length) return;
+            try {
+                const json = JSON.parse($ta.val());
+                json[field] = value;
+                $ta.val(JSON.stringify(json));
+                $ta.trigger('change');
+            } catch (e) { console.error('Sync JSON failed', e); }
+        },
 
-            /* ================= SELECT ================= */
+        applyValueToCell: function ($cell, value, meta) {
+            let display = value ?? '';
             if (meta.type === 'select') {
-                display = '';
+                const option = (meta.options || []).find(o => String(o.value) === String(value));
+                display = option ? option.label : '';
+            } else if (meta.formatter) display = this.formatNumber(value, meta);
+            $cell.attr('data-value', value ?? '').html(display).removeClass('editing');
+        },
 
-                (meta.options || []).some(function (o) {
-                    if (String(o.value) === String(value)) {
-                        display = o.label;
-                        return true;
-                    }
-                    return false;
-                });
+        buildEditorMarkup: function (type, value, meta) {
+            const val = value ?? '';
+            switch (type) {
+                case 'textarea': return $('<textarea class="cell-editor"/>').val(val);
+                case 'select':
+                    const $s = $('<select class="cell-editor"/>');
+                    (meta.options || []).forEach(o => $('<option/>').val(o.value).text(o.label).appendTo($s));
+                    return $s.val(val);
+                case 'number': return $('<input type="number" class="cell-editor"/>').val(val);
+                default: return $('<input type="text" class="cell-editor"/>').val(val);
             }
-
-            /* ================= NUMBER / FORMATTER ================= */
-            else if (meta.formatter && typeof self.formatNumber === 'function') {
-                display = self.formatNumber(value, meta);
-            }
-
-            /* ================= CHECKBOX ================= */
-            else if (meta.type === 'checkbox') {
-                display = value === 'true' || value === true
-                    ? '<i class="fa fa-check"></i>'
-                    : '';
-            }
-
-            /* ================= DEFAULT ================= */
-            else {
-                display = String(display);
-            }
-
-            /* ================= APPLY ================= */
-            $cell
-                .attr('data-value', value ?? '')
-                .html(display)
-                .removeClass('editing');
         },
 
         normalizeNumber: function (val) {
-            if (val == null) return 0;
-
-            if (typeof val === 'number') return val;
-
-            val = String(val).trim();
-            if (!val) return 0;
-
-            val = val.replace(/\s+/g, '');
-
-            const hasComma = val.indexOf(',') !== -1;
-            const hasDot   = val.indexOf('.') !== -1;
-
-            if (hasComma && hasDot) {
-                if (val.lastIndexOf(',') > val.lastIndexOf('.')) {
-                    // 50.000,00 → EU
-                    val = val.replace(/\./g, '').replace(',', '.');
-                } else {
-                    // 50,000.00 → US
-                    val = val.replace(/,/g, '');
-                }
-            } else if (hasComma) {
-                // 50000,00 → decimal
-                val = val.replace(',', '.');
-            } else {
-                // 50000.00 or 50000
-                val = val;
-            }
-
-            var num = parseFloat(val);
-            return isNaN(num) ? 0 : num;
+            if (val == null || val === '') return 0;
+            let s = String(val).replace(/\s+/g, '').replace(/,/g, '.');
+            return parseFloat(s) || 0;
         },
 
         formatNumber: function (value, meta) {
-            if (value == null || value === '') return '';
+            const num = this.normalizeNumber(value);
+            const decimals = parseInt(meta.formatter?.numOfDecimal || 0, 10);
+            return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+        },
 
-            var num = this.normalizeNumber(value);
-            if (isNaN(num)) return value;
+        updateRowCount: function () { $('#rowCount').val(this.table.rows().count()); },
 
-            var fmt = meta.formatter;
-            if (!fmt) return num;
+        _focusNextCell: function ($currentTd, reverse) {
+            const self = this;
+            const $row = $currentTd.closest('tr');
+            const $allCells = $row.find('td');
+            const currentIndex = $allCells.index($currentTd);
+            let nextIndex = reverse ? currentIndex - 1 : currentIndex + 1;
 
-            var decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
-            var useThousand = fmt.useThousandSeparator === true;
-            var style = fmt.style || 'us'; // us | euro
-
-            var parts = num.toFixed(decimals).split('.');
-            var intPart = parts[0];
-            var decPart = parts[1] || '';
-
-            if (useThousand) {
-                intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
-                    style === 'euro' ? '.' : ','
-                );
+            while (nextIndex >= 0 && nextIndex < $allCells.length) {
+                const $nextTd = $($allCells[nextIndex]);
+                const idx = self.table.cell($nextTd).index();
+                if (idx) {
+                    const field = self.FIELD_MAP[idx.column];
+                    const meta = self.FIELD_META[field];
+                    if (meta && !meta.readonly && !meta.calculationLoadBinder && !meta.isHidden) {
+                        setTimeout(() => $nextTd.trigger('click'), 50);
+                        return;
+                    }
+                }
+                reverse ? nextIndex-- : nextIndex++;
             }
-
-            if (decimals > 0) {
-                return style === 'euro'
-                    ? intPart + ',' + decPart
-                    : intPart + '.' + decPart;
-            }
-
-            return intPart;
         }
-
     };
-
 })();

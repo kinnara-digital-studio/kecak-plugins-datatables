@@ -4,11 +4,16 @@
     <#assign formGridId = "formgrid_" + elementParamName! + "_row_" >
 
         <link href="${request.contextPath}/plugin/${className}/core/css/dataTables.min.css" rel="stylesheet" type="text/css" />
-        <link href="${request.contextPath}/plugin/${className}/css/datatables-grid.css" rel="stylesheet" type="text/css" />
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/core/js/dataTables.min.js"></script>
+
+        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+        <!-- CONFIRM DIALOG -->
+        <script src="${request.contextPath}/plugin/${className}/js/confirm-dialog.js"></script>
+        <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
+
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-grid-controller.js"></script>
-        <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
+        <link href="${request.contextPath}/plugin/${className}/css/datatables-grid.css" rel="stylesheet" type="text/css" />
 
         <div id="${formGridId}" name="${elementParamName!}" class="datatable-form-wrapper datatable-card grid form-element">
             <input type="hidden" disabled="disabled" id="appId" value="${appId!}">
@@ -42,6 +47,16 @@
             $(function () {
                 var FIELD_META = ${fieldMeta};
 
+                var existingData = [
+                    <#list dataRows![] as row>
+                    {
+                        <#list row?keys as key>
+                            "${key?js_string}": "${row[key]?js_string}"<#if key_has_next>,</#if>
+                        </#list>
+                    }<#if row_has_next>,</#if>
+                    </#list>
+                ];
+
                 if (!$.fn.DataTable) return;
 
                 var tableEl = $("#${elementId}");
@@ -73,7 +88,7 @@
                     formDefId: '${formDefId!}',
                     baseUrl: '${request.contextPath}',
                     calculationUrl: '${calculationUrl}'
-                });
+                }, existingData);
             });
         </script>
 </div>

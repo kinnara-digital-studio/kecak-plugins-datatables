@@ -111,7 +111,7 @@
                 .on('click', 'td[data-field]', function () {
                     self.onCellClick($(this));
                 })
-                .on('click', '.cell-delete', function (e) {
+                .on('click', '.dt-row-delete', function (e) {
                     e.stopPropagation();
                     self.onDelete($(this).closest('tr'));
                 });

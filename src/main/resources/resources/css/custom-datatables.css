@@ -52,7 +52,7 @@ td.edit-cancelled {
     cursor: pointer;
 }
 
-.cell-delete {
+.dt-row-delete {
     float: right;
     margin-left: 6px;
     color: #dc3545;
@@ -61,11 +61,11 @@ td.edit-cancelled {
     opacity: 0.6;
 }
 
-td:hover .cell-delete {
+td:hover .dt-row-delete {
     opacity: 1;
 }
 
-td.readonly .cell-delete {
+td.readonly .dt-row-delete {
     display: none;
 }
 
