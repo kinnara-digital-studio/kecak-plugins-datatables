@@ -180,35 +180,50 @@
 
         buildDataColumn: function (col, menuType, fieldMeta) {
             return {
-                data: menuType === this.MENU_TYPE.DATALIST || menuType === this.MENU_TYPE.INLINE_GRID ? col.name : null,
-
-                render:
-                    menuType === this.MENU_TYPE.INBOX
-                        ? function (data, type, row) {
-                            return row && row[col.name] !== undefined
-                                ? row[col.name]
-                                : '';
+                data: col.name,
+                name: col.name,
+                render: function (data, type, row) {
+                    const meta = fieldMeta?.[col.name] || {};
+                    const value = data;
+                    if (type === 'display') {
+                        if (value === null || value === undefined || value === '') {
+                            return '';
                         }
-                        : undefined,
+                        if (meta.type === 'select') {
+                            const opt = (meta.options || [])
+                                .find(o => String(o.value) === String(value));
+                            return opt ? opt.label : '';
+                        }else if (meta.formatter) {
+                            if (menuType === 'inlineGrid'){
+                                return DataTablesGridController.formatNumber(value, meta);
+                            }else {
+                                return DataTablesMenuController.formatNumber(value, meta);
+                            }
+                        }
+                        return value;
+                    }
+                    return value;
+                },
 
-                createdCell: this.createCellRenderer(col.name, fieldMeta, menuType)
-            };
-        },
+                createdCell: function (td, cellData, rowData) {
+                    const meta = fieldMeta?.[col.name] || {};
 
-        buildDeleteColumn: function () {
-            return {
-                data: null,
-                orderable: false,
-                searchable: false,
-                className: 'dt-action-col',
-                width: '40px',
-                render: function () {
-                    return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
+                    $(td)
+                        .attr('data-id', rowData.id)
+                        .attr('data-field', col.name)
+                        .attr('data-value', cellData ?? '')
+                        .attr('data-type', meta.type || 'text')
+                        .toggleClass(
+                            'readonly',
+                            meta.readonly === true ||
+                            meta.calculationLoadBinder ||
+                            meta.isHidden === true
+                        );
                 }
             };
         },
 
-        buildInlineGridDeleteColumn: function () {
+        buildDeleteColumn: function () {
             return {
                 data: null,
                 orderable: false,
@@ -263,47 +278,6 @@
             return Object.values(this.MENU_TYPE).includes(type)
                 ? type
                 : this.MENU_TYPE.DATALIST;
-        },
-
-        /* ================= CELL RENDERER ================= */
-        createCellRenderer: function (fieldName, fieldMeta, menuType) {
-            return function (td, cellData, rowData) {
-                var meta = fieldMeta?.[fieldName] || {};
-                var value = rowData?.[fieldName] ?? '';
-
-                $(td).attr('data-value', value);
-
-                if (meta.type === 'select') {
-                    var label = value;
-                    (meta.options || []).forEach(function (o) {
-                        if (o.value === value) label = o.label;
-                    });
-                    $(td).text(label);
-                }else if (meta.formatter) {
-                    if (menuType === 'inlineGrid'){
-                        $(td).text(
-                            DataTablesGridController.formatNumber(value, meta)
-                        );
-                    }else {
-                        $(td).text(
-                            DataTablesMenuController.formatNumber(value, meta)
-                        );
-                    }
-                } else {
-                    $(td).text(value);
-                }
-
-                $(td)
-                    .attr('data-field', fieldName)
-                    .attr('data-id', rowData.id)
-                    .attr('data-type', meta.type || 'text')
-                    .toggleClass(
-                        'readonly',
-                        meta.readonly === true ||
-                        meta.calculationLoadBinder ||
-                        meta.isHidden === true
-                    );
-            };
         }
     };
 })();
