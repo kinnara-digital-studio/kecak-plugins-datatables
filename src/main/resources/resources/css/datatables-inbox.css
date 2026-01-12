@@ -3,12 +3,11 @@
     display: none !important;
 }
 
-/* Khusus untuk kolom Action agar isinya rapat di tengah */
 .dt-action-wrapper {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 5px; /* Jarak antara dropdown dan tombol */
+    gap: 5px;
     width: 100%;
 }
 
