@@ -223,7 +223,7 @@
 
         commit: function ($td, field, rowIndex, inputValue) {
             const meta = this.FIELD_META[field] || {};
-            let rawValue = (meta.formatter || meta.type === 'number') ? this.normalizeNumber(inputValue) : inputValue;
+            let rawValue = (meta.formatter || meta.type === 'number') ? DataTablesFactory.normalizeNumber(inputValue) : inputValue;
 
             const rowData = this.table.row(rowIndex).data();
             rowData[field] = rawValue;
@@ -270,7 +270,7 @@
             if (!calc) return;
 
             const params = {};
-            calc.variables.forEach(v => { params[v.variableName] = this.normalizeNumber(rowData[v.variableName]); });
+            calc.variables.forEach(v => { params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]); });
 
             $.ajax({
                 url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
@@ -312,7 +312,7 @@
             if (meta.type === 'select') {
                 const option = (meta.options || []).find(o => String(o.value) === String(value));
                 display = option ? option.label : '';
-            } else if (meta.formatter) display = this.formatNumber(value, meta);
+            } else if (meta.formatter) display = DataTablesFactory.formatNumber(value, meta);
             $cell.attr('data-value', value ?? '').html(display).removeClass('editing');
         },
 
@@ -327,18 +327,6 @@
                 case 'number': return $('<input type="number" class="cell-editor"/>').val(val);
                 default: return $('<input type="text" class="cell-editor"/>').val(val);
             }
-        },
-
-        normalizeNumber: function (val) {
-            if (val == null || val === '') return 0;
-            let s = String(val).replace(/\s+/g, '').replace(/,/g, '.');
-            return parseFloat(s) || 0;
-        },
-
-        formatNumber: function (value, meta) {
-            const num = this.normalizeNumber(value);
-            const decimals = parseInt(meta.formatter?.numOfDecimal || 0, 10);
-            return num.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
         },
 
         updateRowCount: function () { $('#rowCount').val(this.table.rows().count()); },

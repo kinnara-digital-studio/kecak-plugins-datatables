@@ -233,13 +233,24 @@
                 ? $.extend({}, self.calculatedRowData)
                 : $.extend({}, row.data());
 
-            rowData[field] = newValue;
+            var saveValue = newValue;
+
+            if (meta.type === 'date') {
+                saveValue = DataTablesFactory.ensureDateString(saveValue);
+            }
+
+            rowData[field] = saveValue;
 
             var body = { id: id };
 
             Object.keys(self.FIELD_META).forEach(function (f) {
                 if (rowData[f] != null) {
-                    body[f] = rowData[f];
+                    var metaField = self.FIELD_META[f] || {};
+                    var val = rowData[f];
+                    if (metaField.type === 'date') {
+                        val = DataTablesFactory.ensureDateString(val);
+                    }
+                    body[f] = val;
                 }
             });
 
@@ -281,7 +292,7 @@
                     });
                 }
                 else if (meta.formatter) {
-                    commitValue = this.formatNumber(value, meta);
+                    commitValue = DataTablesFactory.formatNumber(value, meta);
                 }
             }
 
@@ -427,7 +438,7 @@
                 });
             }
             else if (meta.formatter) {
-                text = this.formatNumber(value, meta);
+                text = DataTablesFactory.formatNumber(value, meta);
             }
 
             cell
@@ -509,7 +520,7 @@
 
             var params = {};
             calc.variables.forEach(function (v) {
-                params[v.variableName] = self.normalizeNumber(rowData[v.variableName])|| 0;
+                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName])|| 0;
             });
 
             var formId = self.editFormDefId;
@@ -552,71 +563,6 @@
                     console.warn('Calculation failed:', field);
                 }
             });
-        },
-
-        normalizeNumber: function (val) {
-            if (val == null) return 0;
-
-            if (typeof val === 'number') return val;
-
-            val = String(val).trim();
-            if (!val) return 0;
-
-            val = val.replace(/\s+/g, '');
-
-            const hasComma = val.indexOf(',') !== -1;
-            const hasDot   = val.indexOf('.') !== -1;
-
-            if (hasComma && hasDot) {
-                if (val.lastIndexOf(',') > val.lastIndexOf('.')) {
-                    // 50.000,00 → EU
-                    val = val.replace(/\./g, '').replace(',', '.');
-                } else {
-                    // 50,000.00 → US
-                    val = val.replace(/,/g, '');
-                }
-            } else if (hasComma) {
-                // 50000,00 → decimal
-                val = val.replace(',', '.');
-            } else {
-                // 50000.00 or 50000
-                val = val;
-            }
-
-            var num = parseFloat(val);
-            return isNaN(num) ? 0 : num;
-        },
-
-        formatNumber: function (value, meta) {
-            if (value == null || value === '') return '';
-
-            var num = this.normalizeNumber(value);
-            if (isNaN(num)) return value;
-
-            var fmt = meta.formatter;
-            if (!fmt) return num;
-
-            var decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
-            var useThousand = fmt.useThousandSeparator === true;
-            var style = fmt.style || 'us'; // us | euro
-
-            var parts = num.toFixed(decimals).split('.');
-            var intPart = parts[0];
-            var decPart = parts[1] || '';
-
-            if (useThousand) {
-                intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
-                    style === 'euro' ? '.' : ','
-                );
-            }
-
-            if (decimals > 0) {
-                return style === 'euro'
-                    ? intPart + ',' + decPart
-                    : intPart + '.' + decPart;
-            }
-
-            return intPart;
         },
 
         /* ================= WORKFLOW SUBMIT ================= */

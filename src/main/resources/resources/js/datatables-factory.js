@@ -179,6 +179,7 @@
         },
 
         buildDataColumn: function (col, menuType, fieldMeta) {
+            var self = this;
             return {
                 data: col.name,
                 name: col.name,
@@ -194,11 +195,7 @@
                                 .find(o => String(o.value) === String(value));
                             return opt ? opt.label : '';
                         }else if (meta.formatter) {
-                            if (menuType === 'inlineGrid'){
-                                return DataTablesGridController.formatNumber(value, meta);
-                            }else {
-                                return DataTablesMenuController.formatNumber(value, meta);
-                            }
+                            return self.formatNumber(value, meta);
                         }
                         return value;
                     }
@@ -278,6 +275,91 @@
             return Object.values(this.MENU_TYPE).includes(type)
                 ? type
                 : this.MENU_TYPE.DATALIST;
+        },
+
+        normalizeNumber: function (val) {
+            if (val == null) return null;
+            if (typeof val === 'number') return val;
+
+            val = String(val).trim();
+            if (!val) return null;
+
+            val = val.replace(/\s+/g, '');
+
+            const hasComma = val.includes(',');
+            const hasDot   = val.includes('.');
+
+            if (hasComma && hasDot) {
+                if (val.lastIndexOf(',') > val.lastIndexOf('.')) {
+                    // EU
+                    val = val.replace(/\./g, '').replace(',', '.');
+                } else {
+                    // US
+                    val = val.replace(/,/g, '');
+                }
+            } else if (hasComma) {
+                val = val.replace(',', '.');
+            }
+
+            const num = parseFloat(val);
+            return isNaN(num) ? null : num;
+        },
+
+        formatNumber: function (value, meta) {
+            if (value == null || value === '') return '';
+
+            var num = this.normalizeNumber(value);
+            if (isNaN(num)) return value;
+
+            var fmt = meta.formatter;
+            if (!fmt) return num;
+
+            var decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
+            var useThousand = fmt.useThousandSeparator === true;
+            var style = fmt.style || 'us'; // us | euro
+
+            var parts = num.toFixed(decimals).split('.');
+            var intPart = parts[0];
+            var decPart = parts[1] || '';
+
+            if (useThousand) {
+                intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
+                    style === 'euro' ? '.' : ','
+                );
+            }
+
+            if (decimals > 0) {
+                return style === 'euro'
+                    ? intPart + ',' + decPart
+                    : intPart + '.' + decPart;
+            }
+
+            return intPart;
+        },
+
+        ensureDateString: function (value) {
+            if (!value) return '';
+
+            // sudah DD/MM/YYYY
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
+                return value;
+            }
+
+            // ISO string YYYY-MM-DD
+            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+                const [yyyy, mm, dd] = value.split('-');
+                return `${dd}/${mm}/${yyyy}`;
+            }
+
+            // Date object
+            if (value instanceof Date) {
+                const dd = String(value.getDate()).padStart(2, '0');
+                const mm = String(value.getMonth() + 1).padStart(2, '0');
+                const yyyy = value.getFullYear();
+                return `${dd}/${mm}/${yyyy}`;
+            }
+
+            return String(value);
         }
     };
 })();
