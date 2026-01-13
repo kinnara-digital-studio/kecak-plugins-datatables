@@ -11,8 +11,10 @@ table.dataTable {
 }
 
 td.readonly {
+    color: #666;
     background: #f5f5f5;
     cursor: not-allowed;
+    font-style: italic;
 }
 
 td.editing {

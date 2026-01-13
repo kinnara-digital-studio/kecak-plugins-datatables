@@ -140,8 +140,10 @@ td.editing {
 }
 
 td.readonly {
-    background: #f5f5f5;
-    cursor: not-allowed;
+    color: #666 !important;
+    background: #f5f5f5 !important;
+    cursor: not-allowed !important;
+    font-style: italic !important;
 }
 
 .dt-empty-state {
