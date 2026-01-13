@@ -4,12 +4,10 @@
  * @author: tiyojati
  */
 (function () {
-
     if (window.DataTablesFactory) return;
 
     window.DataTablesFactory = {
-
-        /* ================= CONSTANT ================= */
+        /* ================= CONSTANTS ================= */
         MENU_TYPE: {
             DATALIST: 'datalistMenu',
             INBOX: 'inboxMenu',
@@ -17,221 +15,181 @@
         },
 
         /* ================= STATE ================= */
+        table: null,
         menuType: null,
 
         /* ================= CREATE TABLE ================= */
         create: function (opts) {
-            if (!opts || !opts.menuType) {
-                throw new Error('menuType is required');
+            if (!opts?.menuType) {
+                throw new Error('DataTablesFactory: menuType is required');
             }
-            this.menuType = this.normalizeMenuType(opts.menuType);
-            var isInlineGrid = this.menuType === this.MENU_TYPE.INLINE_GRID;
 
-            var dtOpts = {
+            this.menuType = this.normalizeMenuType(opts.menuType);
+            const isInlineGrid = this.menuType === this.MENU_TYPE.INLINE_GRID;
+            const tableEl = opts.tableElement || '#inlineTable';
+
+            // Base Configuration
+            const dtOpts = {
                 processing: true,
                 serverSide: false,
                 searching: false,
                 autoWidth: false,
-                columns: this.buildColumns(opts)
+                columns: this.buildColumns(opts),
+                lengthChange: false
             };
 
-            /* ================= DATA SOURCE ================= */
-            if (!isInlineGrid) {
-                dtOpts.pageLength = 20;
-                dtOpts.lengthChange = false;
-                dtOpts.ajax = this.buildAjax(opts);
-                dtOpts.layout = {
-                    topStart: () => $('.dt-toolbar'),
-                    topEnd: null,
-                    bottomStart: 'info',
-                    bottomEnd: 'paging'
-                };
+            // config based on Menu Type
+            if (isInlineGrid) {
+                this._applyInlineGridConfig(dtOpts, opts);
             } else {
-                dtOpts.data = opts.data || [];
-                dtOpts.ordering = false;
-                dtOpts.info = false;
-                dtOpts.paging = false;
-                dtOpts.lengthChange = false;
-                dtOpts.language = {
-                    emptyTable: '',
-                    zeroRecords: ''
-                };
-                dtOpts.layout = {
-                    topStart: null,
-                    topEnd: null,
-                    bottomStart: () => $('.dt-toolbar'),
-                    bottomEnd: null
-                };
+                this._applyStandardConfig(dtOpts, opts);
             }
 
-            var tableEl = opts.tableElement || '#inlineTable';
-
-            /* ================= INIT  ================= */
-            var table = new DataTable(tableEl, dtOpts);
-
-            /* ================= TOGGLE INFO & PAGING ================= */
-            if (!isInlineGrid) {
-                this.toggleDtInfoPaging(table);
-
-                table.on('draw', function () {
-                    DataTablesFactory.toggleDtInfoPaging(table);
-                });
-            }
-
-            /* ================= STORE INSTANCE ================= */
+            /* ================= INITIALIZATION ================= */
+            const table = new DataTable(tableEl, dtOpts);
             this.table = table;
 
-            /* ================= INIT CUSTOM TOOLBAR ================= */
             if (!isInlineGrid) {
-                this.initCustomToolbar(opts);
+                this._initStandardFeatures(table, opts);
             }
 
             return table;
         },
 
-        initCustomToolbar: function (opts) {
-            var self = this;
+        /* ================= CONFIG ================= */
+        _applyStandardConfig: function(dtOpts, opts) {
+            dtOpts.pageLength = 20;
+            dtOpts.ajax = this.buildAjax(opts);
+            dtOpts.layout = {
+                topStart: () => $('.dt-toolbar'),
+                topEnd: null,
+                bottomStart: 'info',
+                bottomEnd: 'paging'
+            };
+        },
 
-            if (opts.canEdit === true) {
-                $('#btnAddRow')
-                    .show()
-                    .off('click')
-                    .on('click', function () {
-                        self.openAddForm();
-                    });
+        _applyInlineGridConfig: function(dtOpts, opts) {
+            dtOpts.data = opts.data || [];
+            dtOpts.ordering = false;
+            dtOpts.info = false;
+            dtOpts.paging = false;
+            dtOpts.language = { emptyTable: '', zeroRecords: '' };
+            dtOpts.layout = {
+                topStart: null,
+                topEnd: null,
+                bottomStart: () => $('.dt-toolbar'),
+                bottomEnd: null
+            };
+        },
+
+        _initStandardFeatures: function(table, opts) {
+            this.toggleDtInfoPaging(table);
+            table.on('draw', () => this.toggleDtInfoPaging(table));
+            this.initCustomToolbar(opts);
+        },
+
+        initCustomToolbar: function (opts) {
+            const $btnAdd = $('#btnAddRow');
+
+            if (opts.canEdit) {
+                $btnAdd.show().off('click').on('click', () => this.openAddForm?.());
             } else {
-                $('#btnAddRow').hide();
+                $btnAdd.hide();
             }
 
-            $('#btnReload')
-                .off('click')
-                .on('click', function () {
-                    if (self.table) {
-                        self.table.ajax.reload(null, false);
-                    }
-                });
+            $('#btnReload').off('click').on('click', () => {
+                this.table?.ajax.reload(null, false);
+            });
         },
 
         toggleDtInfoPaging: function (table) {
-            var info = table.page.info();
-            var hasData = info.recordsDisplay > 0;
+            const info = table.page.info();
+            const hasData = info.recordsDisplay > 0;
+            const $wrapper = $(table.table().container());
 
-            var $wrapper = $(table.table().container());
-
-            $wrapper.find('.dt-info').toggle(hasData);
-            $wrapper.find('.dt-paging').toggle(hasData);
+            $wrapper.find('.dt-info, .dt-paging').toggle(hasData);
         },
 
-        /* ================= AJAX ================= */
+        /* ================= BUILDERS ================= */
         buildAjax: function (opts) {
-            if (this.menuType === this.MENU_TYPE.INLINE_GRID) {
-                return null;
-            }
+            if (this.menuType === this.MENU_TYPE.INLINE_GRID) return null;
 
-            if (this.menuType === this.MENU_TYPE.DATALIST) {
-                return {
-                    url: opts.baseUrl + opts.dataUrl,
-
-                    dataSrc: function (json) {
-                        return json && Array.isArray(json.data) ? json.data : [];
-                    }
-                };
-            }
+            const ajaxConfig = {
+                url: opts.baseUrl + opts.dataUrl,
+                dataSrc: (json) => (json && Array.isArray(json.data) ? json.data : [])
+            };
 
             if (this.menuType === this.MENU_TYPE.INBOX) {
-                return {
-                    url: opts.baseUrl + opts.dataUrl,
-
-                    dataSrc: function (json) {
-                        return json && Array.isArray(json.data) ? json.data : [];
-                    },
-
-                    data: function (d) {
-                        d.action = 'getDatalist';
-                        d.dataListId = opts.dataListId;
-                        d.assignmentFilter = opts.assignmentFilter;
-                        d.processId = opts.processId || '';
-                        d.activityDefIds = opts.activityDefIds || '';
-                    }
-                };
+                ajaxConfig.data = (d) => ({
+                    ...d,
+                    action: 'getDatalist',
+                    dataListId: opts.dataListId,
+                    assignmentFilter: opts.assignmentFilter,
+                    processId: opts.processId || '',
+                    activityDefIds: opts.activityDefIds || ''
+                });
             }
+
+            return ajaxConfig;
         },
 
-        /* ================= COLUMNS ================= */
         buildColumns: function (opts) {
-            var self = this;
-            var cols = [];
+            const cols = opts.columns.map(col =>
+                this.buildDataColumn(col, this.menuType, opts.fieldMeta)
+            );
 
-            opts.columns.forEach(function (col) {
-                cols.push(self.buildDataColumn(col, self.menuType, opts.fieldMeta));
-            });
-
-            // ===== ACTION COLUMN =====
-            if (self.menuType === self.MENU_TYPE.DATALIST || self.menuType === self.MENU_TYPE.INLINE_GRID) {
-                cols.push(self.buildDeleteColumn());
-            }
-
-            if (self.menuType === self.MENU_TYPE.INBOX) {
-                cols.push(self.buildWorkflowActionColumn(opts));
+            // Add Action Columns
+            if (this.menuType !== this.MENU_TYPE.INBOX) {
+                cols.push(this.buildDeleteColumn());
+            } else {
+                cols.push(this.buildWorkflowActionColumn(opts));
             }
 
             return cols;
         },
 
         buildDataColumn: function (col, menuType, fieldMeta) {
-            var self = this;
             return {
-                data: col.name,
-                name: col.name,
-                render: function (data, type, row) {
-                    const meta = fieldMeta?.[col.name] || {};
-                    const value = data;
+                data: col.name || null,
+                name: col.name || '',
+                defaultContent: '',
+                render: (data, type, row) => {
+                    if (data === undefined || data === null) return '';
+
                     if (type === 'display') {
-                        if (value === null || value === undefined || value === '') {
-                            return '';
-                        }
+                        const meta = fieldMeta?.[col.name] || {};
+
                         if (meta.type === 'select') {
-                            const opt = (meta.options || [])
-                                .find(o => String(o.value) === String(value));
-                            return opt ? opt.label : '';
-                        }else if (meta.formatter) {
-                            return self.formatNumber(value, meta);
+                            const opt = (meta.options || []).find(o => String(o.value) === String(data));
+                            return opt ? opt.label : data;
                         }
-                        return value;
+
+                        if (meta.formatter) {
+                            return this.formatNumber(data, meta);
+                        }
                     }
-                    return value;
+                    return data;
                 },
-
-                createdCell: function (td, cellData, rowData) {
+                createdCell: (td, cellData, rowData) => {
                     const meta = fieldMeta?.[col.name] || {};
-
-                    $(td)
-                        .attr('data-id', rowData.id)
-                        .attr('data-field', col.name)
-                        .attr('data-value', cellData ?? '')
-                        .attr('data-type', meta.type || 'text')
-                        .toggleClass(
-                            'readonly',
-                            meta.readonly === true ||
-                            meta.calculationLoadBinder ||
-                            meta.isHidden === true
-                        );
+                    $(td).attr({
+                        'data-id': rowData.id,
+                        'data-field': col.name,
+                        'data-value': cellData ?? '',
+                        'data-type': meta.type || 'text'
+                    }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
                 }
             };
         },
 
-        buildDeleteColumn: function () {
-            return {
-                data: null,
-                orderable: false,
-                searchable: false,
-                className: 'dt-action-col',
-                width: '40px',
-                render: function () {
-                    return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
-                }
-            };
-        },
+        buildDeleteColumn: () => ({
+            data: null,
+            orderable: false,
+            searchable: false,
+            className: 'dt-action-col',
+            width: '40px',
+            render: () => '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>'
+        }),
 
         buildWorkflowActionColumn: function (opts) {
             return {
@@ -241,125 +199,79 @@
                 searchable: false,
                 className: 'dt-action-inbox',
                 width: '165px',
-                render: function (data, type, row) {
-                    if (!row || !row.id) return '';
+                render: (data, type, row) => {
+                    if (!row?.id) return '';
 
-                    var html =
-                        '<div class="dt-action-wrapper" data-activity-id="' +
-                        (row.activityId || '') +
-                        '">';
+                    const options = (opts.workflowVariables || [])
+                        .map(o => `<option value="${o.value}">${o.label}</option>`)
+                        .join('');
 
-                    html += '<select class="dt-action-select">';
-                    html += '<option value=""></option>';
-
-                    (opts.workflowVariables || []).forEach(function (o) {
-                        html +=
-                            '<option value="' +
-                            o.value +
-                            '">' +
-                            o.label +
-                            '</option>';
-                    });
-
-                    html += '</select>';
-                    html += '<button type="button" class="dt-action-submit">Submit</button>';
-                    html += '</div>';
-
-                    return html;
+                    return `
+                        <div class="dt-action-wrapper" data-activity-id="${row.activityId || ''}">
+                            <select class="dt-action-select">
+                                <option value=""></option>
+                                ${options}
+                            </select>
+                            <button type="button" class="dt-action-submit">Submit</button>
+                        </div>`;
                 }
             };
         },
 
-        /* ================= NORMALIZER ================= */
+        /* ================= UTILS / NORMALIZERS ================= */
         normalizeMenuType: function (type) {
-            return Object.values(this.MENU_TYPE).includes(type)
-                ? type
-                : this.MENU_TYPE.DATALIST;
+            return Object.values(this.MENU_TYPE).includes(type) ? type : this.MENU_TYPE.DATALIST;
         },
 
         normalizeNumber: function (val) {
-            if (val == null) return null;
+            if (val == null || val === '') return null;
             if (typeof val === 'number') return val;
 
-            val = String(val).trim();
-            if (!val) return null;
-
-            val = val.replace(/\s+/g, '');
-
-            const hasComma = val.includes(',');
-            const hasDot   = val.includes('.');
+            let str = String(val).replace(/\s+/g, '');
+            const hasComma = str.includes(',');
+            const hasDot = str.includes('.');
 
             if (hasComma && hasDot) {
-                if (val.lastIndexOf(',') > val.lastIndexOf('.')) {
-                    // EU
-                    val = val.replace(/\./g, '').replace(',', '.');
-                } else {
-                    // US
-                    val = val.replace(/,/g, '');
-                }
+                str = str.lastIndexOf(',') > str.lastIndexOf('.')
+                    ? str.replace(/\./g, '').replace(',', '.') // EU
+                    : str.replace(/,/g, ''); // US
             } else if (hasComma) {
-                val = val.replace(',', '.');
+                str = str.replace(',', '.');
             }
 
-            const num = parseFloat(val);
+            const num = parseFloat(str);
             return isNaN(num) ? null : num;
         },
 
         formatNumber: function (value, meta) {
-            if (value == null || value === '') return '';
+            const num = this.normalizeNumber(value);
+            if (num === null) return value;
 
-            var num = this.normalizeNumber(value);
-            if (isNaN(num)) return value;
-
-            var fmt = meta.formatter;
+            const fmt = meta.formatter;
             if (!fmt) return num;
 
-            var decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
-            var useThousand = fmt.useThousandSeparator === true;
-            var style = fmt.style || 'us'; // us | euro
+            const decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
+            const style = fmt.style || 'us';
 
-            var parts = num.toFixed(decimals).split('.');
-            var intPart = parts[0];
-            var decPart = parts[1] || '';
+            const formatter = new Intl.NumberFormat(style === 'euro' ? 'de-DE' : 'en-US', {
+                minimumFractionDigits: decimals,
+                maximumFractionDigits: decimals,
+                useGrouping: fmt.useThousandSeparator !== false
+            });
 
-            if (useThousand) {
-                intPart = intPart.replace(/\B(?=(\d{3})+(?!\d))/g,
-                    style === 'euro' ? '.' : ','
-                );
-            }
-
-            if (decimals > 0) {
-                return style === 'euro'
-                    ? intPart + ',' + decPart
-                    : intPart + '.' + decPart;
-            }
-
-            return intPart;
+            return formatter.format(num);
         },
 
         ensureDateString: function (value) {
             if (!value) return '';
+            if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) return value;
 
-            // sudah DD/MM/YYYY
-            if (/^\d{2}\/\d{2}\/\d{4}$/.test(value)) {
-                return value;
-            }
+            let date = value instanceof Date ? value : new Date(value);
+            if (isNaN(date.getTime())) return String(value);
 
-            // ISO string YYYY-MM-DD
-            if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-                const [yyyy, mm, dd] = value.split('-');
-                return `${dd}/${mm}/${yyyy}`;
-            }
-
-            // Date object
-            if (value instanceof Date) {
-                const dd = String(value.getDate()).padStart(2, '0');
-                const mm = String(value.getMonth() + 1).padStart(2, '0');
-                const yyyy = value.getFullYear();
-                return `${dd}/${mm}/${yyyy}`;
-            }
-
-            return String(value);
+            const dd = String(date.getDate()).padStart(2, '0');
+            const mm = String(date.getMonth() + 1).padStart(2, '0');
+            return `${dd}/${mm}/${date.getFullYear()}`;
         }
     };
 })();
