@@ -1,16 +1,13 @@
 /**
  * DataTables Controller
- * @author: tiyojati
+ * @author: tiyojati (Refactored)
  */
 (function () {
-
     if (window.DataTablesMenuController) return;
 
     window.DataTablesMenuController = {
-
         /* ================= STATE ================= */
         table: null,
-
         FIELD_META: null,
         BASE_URL: null,
         ADD_FORM_URL: null,
@@ -33,23 +30,24 @@
 
         /* ================= INIT ================= */
         init: function (opts) {
-            this.table = opts.table;
-            this.FIELD_META = opts.fieldMeta;
-            this.BASE_URL = opts.baseUrl;
-            this.ADD_FORM_URL = opts.addFormUrl;
-            this.EDIT_FORM_URL = opts.editFormUrl;
-            this.CALCULATION_URL = opts.calculationUrl;
-            this.SUBMIT_TASK_URL = opts.submitTaskUrl;
-
-            this.editable = opts.editable;
-            this.userId = opts.userId;
-            this.createFormDefId = opts.createFormDefId;
-            this.editFormDefId = opts.editFormDefId;
-            this.jsonForm = opts.jsonForm;
-            this.nonce = opts.nonce;
+            Object.assign(this, {
+                table: opts.table,
+                FIELD_META: opts.fieldMeta,
+                BASE_URL: opts.baseUrl,
+                ADD_FORM_URL: opts.addFormUrl,
+                EDIT_FORM_URL: opts.editFormUrl,
+                CALCULATION_URL: opts.calculationUrl,
+                SUBMIT_TASK_URL: opts.submitTaskUrl,
+                editable: opts.editable,
+                userId: opts.userId,
+                createFormDefId: opts.createFormDefId,
+                editFormDefId: opts.editFormDefId,
+                jsonForm: opts.jsonForm,
+                nonce: opts.nonce
+            });
 
             this.fieldCalcMap();
-            this.bind();
+            this.bindEvents();
             this.bindEmptyState();
         },
 
@@ -60,137 +58,106 @@
                 title: 'No Data Found',
                 description: 'Nothing found to display',
                 icon: '📭'
-            }, options || {});
+            }, options);
 
             if (!this.table) return;
 
+            const tableNode = $(this.table.table().node());
             let $empty = $('#dt-empty-state');
 
             if ($empty.length === 0) {
                 $empty = $('<div id="dt-empty-state" class="dt-empty-state"></div>').hide();
-                $(this.table.table().node()).before($empty);
+                tableNode.before($empty);
             }
 
             if (opts.show) {
-                $empty.html(
-                    '<div class="dt-empty-box">' +
-                    '<div class="dt-empty-icon">' + opts.icon + '</div>' +
-                    '<div class="dt-empty-title">' + opts.title + '</div>' +
-                    '<div class="dt-empty-desc">' + opts.description + '</div>' +
-                    '</div>'
-                ).show();
-
-                $(this.table.table().node()).hide();
+                $empty.html(`
+                    <div class="dt-empty-box">
+                        <div class="dt-empty-icon">${opts.icon}</div>
+                        <div class="dt-empty-title">${opts.title}</div>
+                        <div class="dt-empty-desc">${opts.description}</div>
+                    </div>
+                `).show();
+                tableNode.hide();
             } else {
                 $empty.hide();
-                $(this.table.table().node()).show();
+                tableNode.show();
             }
         },
 
         bindEmptyState: function () {
-            var self = this;
-            if (!self.table) return;
+            if (!this.table) return;
 
-            self.table.on('xhr.dt', function (e, settings, json) {
+            this.table.on('xhr.dt', (e, settings, json) => {
                 const data = json && Array.isArray(json.data) ? json.data : [];
-                self.toggleEmptyState({ show: data.length === 0 });
+                this.toggleEmptyState({ show: data.length === 0 });
             });
 
-            self.table.on('draw.dt', function () {
-                const count = self.table.rows({ filter: 'applied' }).data().length;
-                self.toggleEmptyState({ show: count === 0 });
+            this.table.on('draw.dt', () => {
+                const count = this.table.rows({ filter: 'applied' }).data().length;
+                this.toggleEmptyState({ show: count === 0 });
             });
         },
 
         /* ================= EVENTS ================= */
+        bindEvents: function () {
+            const $body = $('body');
+            const $table = $('#inlineTable');
 
-        bind: function () {
-            var self = this;
-
-            $('#inlineTable tbody')
-                .on('click', 'td[data-field]', function () {
-                    self.onCellClick($(this));
-                })
-                .on('click', '.dt-row-delete', function (e) {
+            // Cell interaction
+            $table.find('tbody')
+                .on('click', 'td[data-field]', (e) => this.onCellClick($(e.currentTarget)))
+                .on('click', '.dt-row-delete', (e) => {
                     e.stopPropagation();
-                    self.onDelete($(this).closest('tr'));
+                    this.onDelete($(e.currentTarget).closest('tr'));
                 });
 
-            $(document).on('keydown', '.cell-editor', function (e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    self.save();
-                }
-                if (e.key === 'Tab') {
-                    e.preventDefault();
-                    self.save();
-                }
-                if (e.key === 'Escape') {
-                    e.preventDefault();
-                    self.cancel();
-                }
+            // Editor controls
+            $(document).on('keydown', '.cell-editor', (e) => {
+                const keys = {
+                    Enter: () => { e.preventDefault(); this.save(); },
+                    Tab: () => { e.preventDefault(); this.save(); },
+                    Escape: () => { e.preventDefault(); this.cancel(); }
+                };
+                if (keys[e.key]) keys[e.key]();
             });
 
-            $(document).on('mousedown', function (e) {
-                if (!self.editingCell || self.isSaving) return;
-                if ($(e.target).closest('.cell-editor, td').length) return;
-                self.cancel();
+            // Click outside to cancel
+            $(document).on('mousedown', (e) => {
+                if (!this.editingCell || this.isSaving) return;
+                if (!$(e.target).closest('.cell-editor, td').length) this.cancel();
             });
 
-            $(document).on('click', '#btnAddRow', function () {
-                self.openAddForm();
+            $(document).on('click', '#btnAddRow', () => this.openAddForm());
+
+            // Workflow actions
+            $table.on('change', '.dt-action-select', function(e) {
+                $(this).toggleClass('selected', !!this.value);
             });
 
-            // this function for live input calculation
-            // $(document).on('input change', '.cell-editor', function () {
-            //     self.liveCalculate();
-            // });
-
-            /* ================= WORKFLOW ACTION ================= */
-            $('#inlineTable')
-                .on('change', '.dt-action-select', function (e) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-
-                    const value = this.value;
-                    if (!value) return;
-
-                    $(this).addClass('selected');
-                });
-
-            $('#inlineTable')
-                .on('click', '.dt-action-submit', function (e) {
-                    e.preventDefault();
-                    e.stopImmediatePropagation();
-
-                    const $wrapper    = $(this).closest('.dt-action-wrapper');
-                    const activityId  = $wrapper.data('activity-id');
-                    const actionValue = $wrapper.find('.dt-action-select').val();
-
-                    self.submitTask(activityId, actionValue);
-                });
+            $table.on('click', '.dt-action-submit', (e) => {
+                const $wrapper = $(e.currentTarget).closest('.dt-action-wrapper');
+                this.submitTask($wrapper.data('activity-id'), $wrapper.find('.dt-action-select').val());
+            });
         },
 
         /* ================= INLINE EDIT ================= */
-        onCellClick: function (cell) {
-            if (this.editable === false) return;
+        onCellClick: function ($cell) {
+            if (!this.editable || this.editingCell || this.isSaving) return;
 
-            if (this.editingCell || this.isSaving) return;
+            const field = $cell.data('field');
+            const meta = this.FIELD_META[field];
 
-            var field = cell.data('field');
-            var meta  = this.FIELD_META[field];
-            if (!meta || meta.readonly === true || meta.calculationLoadBinder || meta.isHidden === true) return;
+            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
 
-            var row = this.table.row(cell.closest('tr'));
-
+            const row = this.table.row($cell.closest('tr'));
             this.originalRowData = $.extend(true, {}, row.data());
-            this.editingCell = cell;
+            this.editingCell = $cell;
 
-            cell
-                .addClass('editing')
+            $cell.addClass('editing')
                 .data('meta', meta)
                 .empty()
-                .append(this.buildEditor(meta.type, cell.attr('data-value'), meta))
+                .append(this.buildEditor(meta.type, $cell.attr('data-value'), meta))
                 .find('.cell-editor')
                 .focus();
         },
@@ -198,109 +165,83 @@
         save: function () {
             if (!this.editingCell || this.isSaving) return;
 
-            var self = this;
-            var editor = this.editingCell.find('.cell-editor');
-            var newValue = editor.val();
-
+            const newValue = this.editingCell.find('.cell-editor').val();
             this.liveCalculate();
 
-            setTimeout(function() {
-                if (newValue === this.originalValue) {
-                    this.reset();
+            // Timeout to allow calculation to sync if needed
+            setTimeout(() => {
+                if (newValue === this.editingCell.attr('data-value')) {
+                    this.resetState();
                     showToast('No changes detected', 'info');
                     return;
                 }
-                self.doSave(newValue);
+                this.doSave(newValue);
             }, 300);
         },
 
         doSave: function (newValue) {
-            var self = this;
-            self.isSaving = true;
+            this.isSaving = true;
+            const $cell = this.editingCell;
+            const field = $cell.data('field');
+            const id = $cell.data('id');
+            const meta = $cell.data('meta');
+            const formId = meta.isSubForm ? meta.formDefId : this.editFormDefId;
 
-            var cell = self.editingCell;
-            var field = cell.data('field');
-            var id    = cell.data('id');
-            var meta  = cell.data('meta');
+            const $row = this.table.row($cell.closest('tr'));
+            const rowData = $.extend({}, (this.calculatedRowData || $row.data()));
 
-            var formId = self.editFormDefId;
-            if(meta.isSubForm){
-                formId = meta.formDefId;
-            }
-
-            var row = self.table.row(cell.closest('tr'));
-            var rowData = self.calculatedRowData
-                ? $.extend({}, self.calculatedRowData)
-                : $.extend({}, row.data());
-
-            var saveValue = newValue;
-
-            if (meta.type === 'date') {
-                saveValue = DataTablesFactory.ensureDateString(saveValue);
-            }
-
+            let saveValue = (meta.type === 'date') ? DataTablesFactory.ensureDateString(newValue) : newValue;
             rowData[field] = saveValue;
 
-            var body = { id: id };
-
-            Object.keys(self.FIELD_META).forEach(function (f) {
+            // Prepare payload
+            const body = { id: id };
+            Object.keys(this.FIELD_META).forEach(f => {
                 if (rowData[f] != null) {
-                    var metaField = self.FIELD_META[f] || {};
-                    var val = rowData[f];
-                    if (metaField.type === 'date') {
-                        val = DataTablesFactory.ensureDateString(val);
-                    }
-                    body[f] = val;
+                    const m = this.FIELD_META[f] || {};
+                    body[f] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[f]) : rowData[f];
                 }
             });
 
             $.ajax({
-                url: self.BASE_URL + self.EDIT_FORM_URL + formId,
+                url: `${this.BASE_URL}${this.EDIT_FORM_URL}${formId}`,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(body),
-
-                success: function () {
-                    $.each(body, function (field, value) {
-                        self.commitRowChange(field, value);
-                    });
-
-                    self.calculatedRowData = null;
-                    self.applyValue(cell, newValue, meta);
-                    cell.addClass('saved');
-
+                success: () => {
+                    Object.entries(body).forEach(([f, v]) => this.commitRowChange(f, v));
+                    this.calculatedRowData = null;
+                    this.applyValue($cell, newValue, meta);
+                    $cell.addClass('saved');
                     showToast('Changes saved successfully', 'success');
-                    self.reset();
+                    this.resetState();
                 },
-
-                error: function () {
-                    self.restoreRow();
+                error: () => {
+                    this.restoreRow();
                     showToast('Failed to save changes', 'error');
-                }
+                },
+                complete: () => { this.isSaving = false; }
             });
         },
 
         commitRowChange: function (field, value) {
-            var row = this.table.row(this.editingCell.closest('tr'));
-            var data = row.data();
-            var commitValue = value;
-            var meta = this.FIELD_META[field];
-            if (meta){
+            debugger;
+            const row = this.table.row(this.editingCell.closest('tr'));
+            const data = row.data();
+            const meta = this.FIELD_META[field];
+            let commitValue = value;
+
+            if (meta) {
                 if (meta.type === 'select') {
-                    (meta.options || []).forEach(function (o) {
-                        if (o.value === value) commitValue = o.label;
-                    });
+                    const opt = (meta.options || []).find(o => o.value === value);
+                    if (opt) commitValue = opt.label;
                 }
-                else if (meta.formatter) {
-                    commitValue = DataTablesFactory.formatNumber(value, meta);
+                if (meta.formatter || meta.type === 'number') {
+                    commitValue = DataTablesFactory.normalizeNumber(value, meta);
                 }
             }
 
             data[field] = commitValue;
-
-            row
-                .data(data)
-                .invalidate();
+            row.data(data).invalidate();
         },
 
         cancel: function () {
@@ -310,272 +251,176 @@
         },
 
         restoreRow: function () {
-            var row = this.table.row(this.editingCell.closest('tr'));
-            var self = this;
-
+            const row = this.table.row(this.editingCell.closest('tr'));
             row.data(this.originalRowData);
 
-            Object.keys(this.FIELD_META).forEach(function (f) {
-                var meta = self.FIELD_META[f];
+            Object.keys(this.FIELD_META).forEach(f => {
+                const meta = this.FIELD_META[f];
                 if (meta.isHidden) return;
-                var cell = self.findCellByField(f, row);
-                if (cell) self.applyValue(cell, self.originalRowData[f], meta);
+                const cell = this.findCellByField(f, row);
+                if (cell) this.applyValue(cell, this.originalRowData[f], meta);
             });
 
-            this.reset();
+            this.resetState();
         },
 
-        reset: function () {
+        resetState: function () {
             this.editingCell = null;
             this.originalRowData = null;
             this.isSaving = false;
         },
 
         /* ================= DELETE ================= */
-
         onDelete: function (row) {
-            var self = this;
-            if (!self.editable) return;
+            if (!this.editable || this.isSaving) return;
 
-            if (self.isSaving) return;
+            const data = this.table.row(row).data();
+            if (!data?.id) return;
 
-            var data = self.table.row(row).data();
-            if (!data || !data.id) return;
-
-            showConfirm(
-                {
+            showConfirm({
                     title: 'Delete Confirmation',
                     message: 'Are you sure you want to delete this record?'
                 },
-                function () {
-                    self.doDelete(data.id, row);
-                },
-                function () {
-                    showToast('Delete cancelled', 'info');
-                }
-            );
+                () => this.doDelete(data.id, row),
+                () => showToast('Delete cancelled', 'info'));
         },
 
         doDelete: function (id, row) {
-            var self = this;
-            self.isSaving = true;
-            var formId = self.createFormDefId;
-
+            this.isSaving = true;
             $.ajax({
-                url: self.BASE_URL + self.EDIT_FORM_URL + formId + '/' + id,
+                url: `${this.BASE_URL}${this.EDIT_FORM_URL}${this.createFormDefId}/${id}`,
                 type: 'DELETE',
-
-                success: function () {
-                    self.table.row(row).remove().draw(false);
-                    self.toggleEmptyState({
-                        show: self.table.rows().data().length === 0
-                    });
+                success: () => {
+                    this.table.row(row).remove().draw(false);
+                    this.toggleEmptyState({ show: this.table.rows().data().length === 0 });
                     showToast('Record deleted successfully', 'success');
-                    self.isSaving = false;
                 },
-
-                error: function () {
-                    showToast('Failed to delete record', 'error');
-                    self.isSaving = false;
-                }
+                error: () => showToast('Failed to delete record', 'error'),
+                complete: () => { this.isSaving = false; }
             });
         },
 
-        /* ================= ADD ROW (JPOPUP) ================= */
-
+        /* ================= POPUP / ADD ================= */
         openAddForm: function () {
             if (!this.createFormDefId) return;
 
-            this.popupForm(
-                this.createFormDefId,
-                JSON.parse(this.jsonForm),
-                this.nonce,
-                {},
-                {},
-                900,
-                800
-            );
-        },
-
-        popupForm: function (elementId, jsonForm, nonce, args, data, width, height) {
-            var self = this;
-
-            var frameId = args.frameId = 'Frame_' + elementId;
-            var formUrl = self.BASE_URL + self.ADD_FORM_URL;
-            formUrl += UI.userviewThemeParams();
-
-            var params = {
-                _json: JSON.stringify(jsonForm || {}),
-                _callback: 'DataTablesController.onSubmitted',
-                _setting: JSON.stringify(args || {}).replace(/"/g, "'"),
-                _jsonrow: JSON.stringify(data || {}),
-                _nonce: nonce
+            const args = { frameId: 'Frame_' + this.createFormDefId };
+            const formUrl = this.BASE_URL + this.ADD_FORM_URL + UI.userviewThemeParams();
+            const params = {
+                _json: this.jsonForm,
+                _callback: 'DataTablesMenuController.onSubmitted',
+                _setting: JSON.stringify(args).replace(/"/g, "'"),
+                _jsonrow: JSON.stringify({}),
+                _nonce: this.nonce
             };
 
-            JPopup.show(frameId, formUrl, params, '', width, height);
+            JPopup.show(args.frameId, formUrl, params, '', 900, 800);
         },
 
         onSubmitted: function (args) {
-            try {
-                JPopup.hide(args.frameId);
-            } catch (e) {}
-
-            if (this.table) {
-                this.table.ajax.reload(null, false);
-            }
-
+            try { JPopup.hide(args.frameId); } catch (e) {}
+            if (this.table) this.table.ajax.reload(null, false);
             showToast('Data added successfully', 'success');
         },
 
         /* ================= UI HELPERS ================= */
-
-        applyValue: function (cell, value, meta) {
-            var text = value;
-
+        applyValue: function ($cell, value, meta) {
+            let text = value;
             if (meta.type === 'select') {
-                (meta.options || []).forEach(function (o) {
-                    if (o.value === value) text = o.label;
-                });
-            }
-            else if (meta.formatter) {
+                const opt = (meta.options || []).find(o => o.value === value);
+                text = opt ? opt.label : value;
+            } else if (meta.formatter) {
                 text = DataTablesFactory.formatNumber(value, meta);
             }
 
-            cell
-                .attr('data-value', value)
-                .html(text)
-                .removeClass('editing');
-        },
-
-        fieldCalcMap: function () {
-            var map = {};
-
-            Object.keys(this.FIELD_META).forEach(function (field) {
-                var calc = DataTablesMenuController.FIELD_META[field].calculationLoadBinder;
-                if (!calc || !calc.variables) return;
-
-                calc.variables.forEach(function (v) {
-                    map[v.variableName] = map[v.variableName] || [];
-                    map[v.variableName].push(field);
-                });
-            });
-
-            this.fieldCalculateMap = map;
+            $cell.attr('data-value', value).html(text).removeClass('editing');
         },
 
         buildEditor: function (type, value, meta) {
-            value = value ?? '';
-
-            switch (type) {
-                case 'textarea':
-                    return $('<textarea class="cell-editor"/>').val(value);
-
-                case 'select':
-                    var sel = $('<select class="cell-editor"/>');
-                    (meta.options || []).forEach(function (o) {
-                        sel.append(
-                            $('<option/>').val(o.value).text(o.label)
-                        );
-                    });
-                    return sel.val(value);
-
-                case 'number':
-                    return $('<input type="number" class="cell-editor"/>').val(value);
-
-                case 'date':
-                    return $('<input type="date" class="cell-editor"/>').val(value);
-
-                default:
-                    return $('<input type="text" class="cell-editor"/>').val(value);
-            }
+            const val = value ?? '';
+            const $editor = (() => {
+                switch (type) {
+                    case 'textarea': return $('<textarea/>');
+                    case 'select':
+                        const $sel = $('<select/>');
+                        (meta.options || []).forEach(o => $sel.append($('<option/>').val(o.value).text(o.label)));
+                        return $sel;
+                    case 'number': return $('<input type="number"/>');
+                    case 'date': return $('<input type="date"/>');
+                    default: return $('<input type="text"/>');
+                }
+            })();
+            return $editor.addClass('cell-editor').val(val);
         },
 
-        /* ================= LIVE CALCULATION ================= */
+        /* ================= CALCULATION ================= */
+        fieldCalcMap: function () {
+            const map = {};
+            Object.entries(this.FIELD_META).forEach(([field, meta]) => {
+                const vars = meta.calculationLoadBinder?.variables;
+                if (vars) {
+                    vars.forEach(v => {
+                        map[v.variableName] = map[v.variableName] || [];
+                        map[v.variableName].push(field);
+                    });
+                }
+            });
+            this.fieldCalculateMap = map;
+        },
+
         liveCalculate: function () {
             if (!this.editingCell) return;
 
-            var self = this;
-            var row = this.table.row(this.editingCell.closest('tr'));
-            var rowData = $.extend({}, row.data());
+            const $row = this.table.row(this.editingCell.closest('tr'));
+            const rowData = $.extend({}, $row.data());
+            const field = this.editingCell.data('field');
 
-            var editedField = this.editingCell.data('field');
-            var editorVal   = this.editingCell.find('.cell-editor').val();
+            rowData[field] = this.editingCell.find('.cell-editor').val() || '0';
 
-            rowData[editedField] = editorVal || '0';
-
-            var calcFields = this.fieldCalculateMap[editedField] || [];
-            if (!calcFields.length) return;
-
-            calcFields.forEach(function (field) {
-                self.calculateField(field, row, rowData);
-            });
+            const dependents = this.fieldCalculateMap[field] || [];
+            dependents.forEach(f => this.calculateField(f, $row, rowData));
         },
 
         calculateField: function (field, row, rowData) {
-            var self = this;
-            var meta = self.FIELD_META[field];
-            var calc = meta.calculationLoadBinder;
+            const meta = this.FIELD_META[field];
+            const calc = meta.calculationLoadBinder;
+            if (!calc?.variables) return;
 
-            if (!calc || !calc.variables) return;
-
-            var params = {};
-            calc.variables.forEach(function (v) {
-                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName])|| 0;
+            const params = {};
+            calc.variables.forEach(v => {
+                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
             });
 
-            var formId = self.editFormDefId;
-            if (meta.isSubForm){
-                formId = meta.formDefId;
-            }
-
             $.ajax({
-                url: self.BASE_URL + self.CALCULATION_URL + '?action=calculate',
+                url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify({
-                    formDefId: formId,
+                    formDefId: meta.isSubForm ? meta.formDefId : this.editFormDefId,
                     fieldId: field,
                     primaryKey: rowData.id,
                     requestParams: params
                 }),
-
-                success: function (res) {
-                    if (!res || res.value == null) return;
-
+                success: (res) => {
+                    if (res?.value == null) return;
                     rowData[field] = res.value;
-
-                    self.calculatedRowData = $.extend({}, rowData);
+                    this.calculatedRowData = $.extend({}, rowData);
 
                     if (!meta.isHidden) {
-                        var cell = self.findCellByField(field, row);
-                        if (cell && !cell.hasClass('editing')) {
-                            self.applyValue(cell, res.value, meta);
-                        }
+                        const cell = this.findCellByField(field, row);
+                        if (cell && !cell.hasClass('editing')) this.applyValue(cell, res.value, meta);
                     }
 
-                    var nextCalcField = self.fieldCalculateMap[field] || [];
-                    nextCalcField.forEach(function (f) {
-                        self.calculateField(f, row, rowData);
-                    });
-                },
-
-                error: function () {
-                    console.warn('Calculation failed:', field);
+                    // Recursive calculation for nested dependencies
+                    (this.fieldCalculateMap[field] || []).forEach(f => this.calculateField(f, row, rowData));
                 }
             });
         },
 
-        /* ================= WORKFLOW SUBMIT ================= */
+        /* ================= WORKFLOW ================= */
         submitTask: function (activityId, actionValue) {
-            var self = this;
-
-            if (!activityId) {
-                alert('Activity ID not found');
-                return;
-            }
-
-            if (!actionValue) {
-                alert('Please select an action first');
+            if (!activityId || !actionValue) {
+                alert(activityId ? 'Please select an action first' : 'Activity ID not found');
                 return;
             }
 
@@ -583,46 +428,28 @@
             formData.append('status', actionValue);
 
             $.ajax({
-                url: self.BASE_URL + self.SUBMIT_TASK_URL + activityId + '?loginAs=' + self.userId,
+                url: `${this.BASE_URL}${this.SUBMIT_TASK_URL}${activityId}?loginAs=${this.userId}`,
                 type: 'POST',
                 data: formData,
                 processData: false,
                 contentType: false,
-
-                success: function (res) {
-                    if (res && res.message === 'Success') {
+                success: (res) => {
+                    if (res?.message === 'Success') {
                         showToast('Submit data successfully', 'success');
-                        if (self.table) {
-                            self.table.ajax.reload(null, false);
-                        }
+                        this.table?.ajax.reload(null, false);
                     } else {
                         showToast('Failed to submit action', 'error');
                     }
                 },
-
-                error: function () {
-                    showToast('Failed to submit data', 'error');
-                }
+                error: () => showToast('Failed to submit data', 'error')
             });
         },
 
         findCellByField: function (field, row) {
-            if (!row) return null;
-
-            var rowNode = row.node();
-            if (!rowNode) return null;
-
-            var cell = null;
-
-            $(rowNode).find('td').each(function () {
-                if ($(this).data('field') === field) {
-                    cell = $(this);
-                    return false;
-                }
-            });
-
-            return cell;
+            const node = row?.node();
+            if (!node) return null;
+            const $cell = $(node).find(`td[data-field="${field}"]`);
+            return $cell.length ? $cell : null;
         }
     };
-
 })();
