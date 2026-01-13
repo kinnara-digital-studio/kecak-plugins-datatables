@@ -20,6 +20,55 @@
     width: 95%;
 }
 
+/* Container */
+.dt-paging {
+    display: flex !important;
+    justify-content: center !important;
+    margin-top: 16px !important;
+}
+
+/* Button */
+.dt-paging-button {
+    min-width: 36px !important;
+    height: 36px !important;
+    padding: 0 12px !important;
+    margin: 0 4px !important;
+    border-radius: 8px !important;
+    border: 1px solid #e5e7eb !important;
+    background: #fff !important;
+    color: #374151 !important;
+    cursor: pointer !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    transition: all .15s ease !important;
+}
+
+/* Hover */
+.dt-paging-button:hover {
+    background: #f3f4f6 !important;
+}
+
+/* Active */
+.dt-paging-button.is-active {
+    background: #2563eb !important;
+    border-color: #2563eb !important;
+    color: #fff !important;
+    font-weight: 600 !important;
+}
+
+/* Disabled */
+.dt-paging-button:disabled {
+    opacity: .4 !important;
+    cursor: not-allowed !important;
+}
+
+/* Hide First & Last pagination buttons */
+.dt-paging-button[data-dt-idx="first"],
+.dt-paging-button[data-dt-idx="last"] {
+    display: none !important;
+}
+
 .dt-action-col {
     width: 40px !important;
     text-align: center;
@@ -114,4 +163,118 @@ td.readonly .dt-row-delete {
 .dt-empty-desc {
     font-size: 13px;
     color: #777;
+}
+
+/* ===============================
+   DISABLE KECak ACTIVE / FOCUS
+================================ */
+.dt-btn,
+.dt-btn:focus,
+.dt-btn:active,
+.dt-btn:focus-visible {
+    background-image: none !important;
+    box-shadow: none !important;
+    outline: none !important;
+}
+
+/* ===============================
+   KEEP COLOR STABLE ON CLICK
+================================ */
+.dt-btn:active {
+    transform: none !important;
+}
+
+/* ===============================
+   ADD BUTTON (PRIMARY)
+================================ */
+.dt-btn-add:active,
+.dt-btn-add:focus,
+.dt-btn-add:focus-visible {
+    background: #28a745 !important;
+    border-color: #28a745 !important;
+    color: #ffffff !important;
+}
+
+/* ===============================
+   DEFAULT BUTTON
+================================ */
+.dt-btn-reload:active,
+.dt-btn-reload:focus,
+.dt-btn-reload:focus-visible {
+    background: #ffffff !important;
+    border-color: #d0d5dd !important;
+    color: #344054 !important;
+}
+
+/* ===============================
+   BASE BUTTON (match dt paging)
+================================ */
+.dt-btn {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid #d0d5dd;
+    background: #ffffff;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: all .15s ease;
+}
+
+/* Hover */
+.dt-btn:hover {
+    background: #f2f4f7;
+    border-color: #c0c7d1;
+}
+
+/* Active */
+.dt-btn:active {
+    background: #e4e7ec;
+}
+
+/* Disabled */
+.dt-btn:disabled,
+.dt-btn.disabled {
+    opacity: .5;
+    cursor: not-allowed;
+}
+
+/* ===============================
+   ICON
+================================ */
+.dt-btn i {
+    font-size: 13px;
+}
+
+/* ===============================
+   ADD BUTTON (primary-style)
+================================ */
+.dt-btn-add {
+    background: #28a745;
+    border-color: #28a745;
+    color: #ffffff;
+}
+
+.dt-btn-add:hover {
+    background: #1e7e34;
+    border-color: #1e7e34;
+}
+
+/* ===============================
+   RELOAD BUTTON
+================================ */
+.dt-btn-reload {
+    color: #344054;
+}
+
+.dt-btn-reload:hover {
+    color: #0c0c0c;
+}
+
+.dt-toolbar {
+    gap: 8px;
 }

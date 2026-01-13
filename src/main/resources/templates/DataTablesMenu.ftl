@@ -21,7 +21,7 @@
 <div class="datatable-card">
     <div class="dt-toolbar">
         <button id="btnAddRow" class="dt-btn dt-btn-add" style="display:none">
-            <i class="fa fa-plus"></i> Add
+            <i class="fa fa-plus"></i>
         </button>
 
         <button id="btnReload" class="dt-btn dt-btn-reload">
