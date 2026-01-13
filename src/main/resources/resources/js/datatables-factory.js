@@ -59,7 +59,7 @@
                 dtOpts.layout = {
                     topStart: null,
                     topEnd: null,
-                    bottomStart: null,
+                    bottomStart: () => $('.dt-toolbar'),
                     bottomEnd: null
                 };
             }

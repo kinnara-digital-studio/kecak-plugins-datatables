@@ -37,7 +37,7 @@
                 <tbody></tbody>
             </table>
 
-            <div class="dt-footer-left">
+            <div class="dt-toolbar">
                 <span class="dt-add-row"><i class="fa fa-plus-circle"></i></span>
             </div>
 

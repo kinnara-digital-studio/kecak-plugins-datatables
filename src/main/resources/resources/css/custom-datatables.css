@@ -55,8 +55,6 @@ td.edit-cancelled {
 }
 
 .dt-row-delete {
-    float: right;
-    margin-left: 6px;
     color: #dc3545;
     cursor: pointer;
     font-size: 14px;
