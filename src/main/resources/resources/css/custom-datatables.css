@@ -1,6 +1,23 @@
-table.dataTable {
-    table-layout: fixed !important;
-    width: 100% !important;
+.datatable-card {
+    margin: 20px auto;
+    width: 100%; /* Fleksibel */
+    background: #fff;
+    border-radius: 8px;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+    border: 1px solid #e6e9ef;
+}
+
+.dt-toolbar {
+    margin-bottom: 15px;
+    display: flex;
+    justify-content: flex-end;
+}
+
+#inlineTable_wrapper {
+    margin: 0 auto;
+    width: 95%;
 }
 
 .dt-action-col {

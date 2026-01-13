@@ -18,33 +18,34 @@
 
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"/>
 
-<div class="dt-toolbar">
-    <button id="btnAddRow" class="dt-btn dt-btn-add" style="display:none">
-        <i class="fa fa-plus"></i> Add
-    </button>
+<div class="datatable-card">
+    <div class="dt-toolbar">
+        <button id="btnAddRow" class="dt-btn dt-btn-add" style="display:none">
+            <i class="fa fa-plus"></i> Add
+        </button>
 
-    <button id="btnReload" class="dt-btn dt-btn-reload">
-        <i class="fa fa-refresh"></i>
-    </button>
+        <button id="btnReload" class="dt-btn dt-btn-reload">
+            <i class="fa fa-refresh"></i>
+        </button>
+    </div>
+    <table id="inlineTable" class="display" style="width:100%">
+        <thead>
+            <tr>
+                <#list dataList.columns as c>
+                    <th>${c.label}</th>
+                </#list>
+                <#-- action column -->
+                <#if menuType == "datalistMenu">
+                    <th></th>
+                </#if>
+                <#if menuType == "inboxMenu">
+                    <th>Action</th>
+                </#if>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
 </div>
-<table id="inlineTable" class="display" style="width:100%">
-    <thead>
-        <tr>
-            <#list dataList.columns as c>
-                <th>${c.label}</th>
-            </#list>
-            <#-- action column -->
-            <#if menuType == "datalistMenu">
-                <th></th>
-            </#if>
-            <#if menuType == "inboxMenu">
-                <th>Action</th>
-            </#if>
-        </tr>
-    </thead>
-    <tbody></tbody>
-</table>
-
 <script>
 $(function () {
     var FIELD_META = ${fieldMeta};
