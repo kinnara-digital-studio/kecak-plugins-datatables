@@ -34,7 +34,8 @@ public class DataTablesUtil {
             Map.entry("org.joget.apps.form.lib.CheckBox", "checkbox"),
             Map.entry("org.joget.apps.form.lib.Radio", "radio"),
             Map.entry("org.joget.apps.form.lib.DatePicker", "date"),
-            Map.entry("org.joget.apps.form.lib.NumberField", "number")
+            Map.entry("org.joget.apps.form.lib.NumberField", "number"),
+            Map.entry("com.kinnarastudio.kecakplugins.autofillselectbox.AutofillSelectBox", "select")
     );
 
     /**

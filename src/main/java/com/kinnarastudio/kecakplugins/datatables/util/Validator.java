@@ -1,5 +1,8 @@
 package com.kinnarastudio.kecakplugins.datatables.util;
 
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.util.Collection;
 import java.util.Enumeration;
 import java.util.Iterator;
@@ -8,30 +11,45 @@ import java.util.Map;
 public final class Validator {
 
     public static boolean isNullOrEmpty(Object value){
-        if (null == value){
+        if (value == null) {
             return true;
         }
 
-        if (value instanceof String){
-            return value.toString().trim().length() <= 0;
+        /* ================= STRING ================= */
+        if (value instanceof String) {
+            return ((String) value).trim().isEmpty();
         }
 
-        if (value instanceof Collection){
+        /* ================= COLLECTION ================= */
+        if (value instanceof Collection) {
             return ((Collection<?>) value).isEmpty();
         }
 
-        if (value instanceof Map){
+        /* ================= MAP ================= */
+        if (value instanceof Map) {
             return ((Map<?, ?>) value).isEmpty();
         }
 
-        if (value instanceof Enumeration){
+        /* ================= ENUMERATION ================= */
+        if (value instanceof Enumeration) {
             return !((Enumeration<?>) value).hasMoreElements();
         }
 
-        if (value instanceof Iterator){
+        /* ================= ITERATOR ================= */
+        if (value instanceof Iterator) {
             return !((Iterator<?>) value).hasNext();
         }
 
+        /* ================= JSON ================= */
+        if (value instanceof JSONArray) {
+            return ((JSONArray) value).length() == 0;
+        }
+
+        if (value instanceof JSONObject) {
+            return ((JSONObject) value).length() == 0;
+        }
+
+        /* ================= ARRAY ================= */
         boolean arrayFlag = arrayIsNullOrEmpty(value);
         if (arrayFlag){
             return true;
