@@ -270,7 +270,9 @@
             if (!calc) return;
 
             const params = {};
-            calc.variables.forEach(v => { params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]); });
+            calc.variables.forEach(v => {
+                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]);
+            });
 
             $.ajax({
                 url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
@@ -284,12 +286,21 @@
                 }),
                 success: function (res) {
                     if (res?.value == null) return;
+
                     rowData[field] = res.value;
                     self.syncJsonRow(rowIndex, field, res.value);
-                    const colIdx = self.FIELD_MAP.indexOf(field);
-                    const $cell = $(self.table.cell(rowIndex, colIdx).node());
-                    if (!$cell.hasClass('editing')) self.applyValueToCell($cell, res.value, meta);
+
+                    const rowNode = self.table.row(rowIndex).node();
+                    const $cell = $(rowNode).find(`td[data-field="${field}"]`);
+
+                    if ($cell.length > 0 && !$cell.hasClass('editing')) {
+                        self.applyValueToCell($cell, res.value, meta);
+                    }
+
                     self.triggerCalculate(field, rowIndex, rowData);
+                },
+                error: function(err) {
+                    console.error(`Calculation failed for field: ${field}`, err);
                 }
             });
         },
