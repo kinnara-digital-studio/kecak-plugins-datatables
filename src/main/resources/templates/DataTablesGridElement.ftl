@@ -87,7 +87,9 @@
                     fieldMeta: FIELD_META,
                     formDefId: '${formDefId!}',
                     baseUrl: '${request.contextPath}',
-                    calculationUrl: '${calculationUrl}'
+                    calculationUrl: '${calculationUrl}',
+                    appId: '${appId!}',
+                    appVersion: '${appVersion!}'
                 }, existingData);
             });
         </script>

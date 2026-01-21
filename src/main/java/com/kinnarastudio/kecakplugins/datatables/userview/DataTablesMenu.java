@@ -1,5 +1,6 @@
 package com.kinnarastudio.kecakplugins.datatables.userview;
 
+import com.kinnarastudio.kecakplugins.datatables.core.FormMetaBuilder;
 import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
 import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesInboxBiz;
 import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
@@ -40,6 +41,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
 
     private transient DataTablesMenuBiz dataTablesMenuBiz;
     private transient DataTablesInboxBiz dataTablesInboxBiz;
+    private transient FormMetaBuilder formMetaBuilder;
 
     protected DataTablesMenuBiz dataTablesMenuBiz() {
         if (dataTablesMenuBiz == null) {
@@ -53,6 +55,13 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
             dataTablesInboxBiz = new DataTablesInboxBiz();
         }
         return dataTablesInboxBiz;
+    }
+
+    protected FormMetaBuilder formMetaBuilder() {
+        if (formMetaBuilder == null) {
+            formMetaBuilder = new FormMetaBuilder();
+        }
+        return formMetaBuilder;
     }
 
     private final static String LABEL = "DataTable Inbox/Datalist Menu";
@@ -91,7 +100,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
 
         Map<String, Map<String, Object>> fieldMeta = new HashMap<>();
         try {
-            fieldMeta = dataTablesMenuBiz().extractFieldMeta(editFormDefId);
+            fieldMeta = formMetaBuilder().extractFieldMeta(editFormDefId, null);
         } catch (JSONException e) {
             LogUtil.error(getClassName(), e, e.getMessage());
         }

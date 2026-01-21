@@ -67,6 +67,8 @@ public class DataTablesGridBinder extends FormBinder
 
     @Override
     public FormRowSet load(Element element, String primaryKey, FormData formData) {
+        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load primaryKey [" + primaryKey + "]");
+        AppDefinition appDef = AppUtil.getCurrentAppDefinition();
         FormRowSet rows = new FormRowSet();
         Form form = dataTablesBinderBiz().getSelectedForm(getFormId());
         if (form != null && primaryKey != null) {
@@ -76,6 +78,21 @@ public class DataTablesGridBinder extends FormBinder
                 final StringBuilder condition = new StringBuilder(propertyName != null && !propertyName.isEmpty() ? " WHERE " + propertyName + " = ?" : "");
                 List<Object> paramsArray = new ArrayList<>();
                 paramsArray.add(primaryKey);
+                if (getProperty("extraCondition") != null) {
+                    for (Object o : (Object[]) getProperty("extraCondition")) {
+                        Map<String, String> row = (Map<String, String>) o;
+                        String extraKey = row.get("key");
+                        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKey [" + extraKey + "]");
+                        if ((extraKey!= null || !extraKey.isEmpty())) {
+                            condition.append(" AND ").append(dataTablesBinderBiz().getFormPropertyName(form, extraKey)).append(" = ? ");
+                        }
+                        String extraKeyValue = dataTablesBinderBiz().getKeyValue(formData, element, extraKey);
+                        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKeyValue [" + extraKeyValue + "]");
+                        if ((extraKeyValue != null || !extraKeyValue.isEmpty())) {
+                            paramsArray.add(AppUtil.processHashVariable(extraKeyValue.trim(), null, null, null, appDef));
+                        }
+                    }
+                }
                 rows = formDataDao.find(form, condition.toString(), paramsArray.toArray(), "dateCreated", false, null, null);
             } catch (BeansException e) {
                 LogUtil.error(getClassName(), e, e.getMessage());
@@ -127,9 +144,7 @@ public class DataTablesGridBinder extends FormBinder
                 }
                 Form parentForm = FormUtil.findRootForm(element);
                 String primaryKeyValue = parentForm.getPrimaryKeyValue(formData);
-                LogUtil.warn(getClassName(), "DataTablesBinder FormData parentForm  primaryKeyValue[" + primaryKeyValue + "]");
                 FormRowSet originalRowSet = this.load(element, primaryKeyValue, formData);
-                LogUtil.warn(getClassName(), "DataTablesBinder formRowSet originalRowSet [" + originalRowSet.toString() + "]");
                 if (Validator.isNotNullOrEmpty(originalRowSet)) {
                     List<String> ids = new ArrayList<>();
                     for (FormRow r : originalRowSet) {

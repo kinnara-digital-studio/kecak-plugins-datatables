@@ -4,6 +4,7 @@ import com.kinnarastudio.commons.Try;
 import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
 import com.kinnarastudio.kecakplugins.datatables.util.DataTablesUtil;
 import com.kinnarastudio.kecakplugins.datatables.util.Validator;
+import com.kinnarastudio.kecakplugins.datatables.util.enums.FormElementType;
 import org.joget.apps.app.dao.DatalistDefinitionDao;
 import org.joget.apps.app.dao.FormDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
@@ -13,7 +14,6 @@ import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.datalist.model.DataList;
 import org.joget.apps.datalist.model.DataListColumnFormatDefault;
 import org.joget.apps.datalist.service.DataListService;
-import org.joget.apps.form.lib.Grid;
 import org.joget.apps.form.model.*;
 import org.joget.apps.form.service.FormService;
 import org.joget.apps.form.service.FormUtil;
@@ -35,36 +35,6 @@ import java.util.*;
 import java.util.stream.Stream;
 
 public class DataTablesMenuBiz {
-    /* ================= FORM JSON CACHE (TTL) ================= */
-    private static final long FORM_CACHE_TTL = 5 * 60 * 1000; // 5 menit
-    private static final long OPTIONS_CACHE_TTL = 5 * 60 * 1000; // 5 menit
-
-    private static final Map<String, CachedFormJson> FORM_JSON_CACHE =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
-    private static final Map<String, CachedElementOptions> OPTIONS_JSON_CACHE =
-            new java.util.concurrent.ConcurrentHashMap<>();
-
-    protected static class CachedFormJson {
-        JSONObject json;
-        long expireAt;
-
-        CachedFormJson(JSONObject json, long expireAt) {
-            this.json = json;
-            this.expireAt = expireAt;
-        }
-    }
-
-    protected static class CachedElementOptions {
-        JSONArray jsonArray;
-        long expireAt;
-
-        CachedElementOptions(JSONArray jsonArray, long expireAt) {
-            this.jsonArray = jsonArray;
-            this.expireAt = expireAt;
-        }
-    }
-
     private String getClassName() {
         return getClass().getName();
     }
@@ -197,202 +167,6 @@ public class DataTablesMenuBiz {
         return null;
     }
 
-    public Map<String, Map<String, Object>> extractFieldMeta(String formDefId) throws JSONException {
-        JSONObject jsonForm = this.getJsonFormCached(formDefId);
-        Map<String, Map<String, Object>> result = new HashMap<>();
-        this.walkElements(jsonForm.getJSONArray("elements"), result);
-        return result;
-    }
-
-    protected void walkElements(JSONArray elements, Map<String, Map<String, Object>> result)
-            throws JSONException {
-        walkElements(elements, result, false, null);
-    }
-
-    protected void walkElements(JSONArray elements, Map<String, Map<String, Object>> result, boolean inSubForm, String subFormDefId) throws JSONException {
-        for (int i = 0; i < elements.length(); i++) {
-
-            JSONObject element = elements.getJSONObject(i);
-            String className   = element.optString("className", "");
-            JSONObject props   = element.optJSONObject("properties");
-
-            if (Validator.isNullOrEmpty(props)) continue;
-
-            /* ================= SUBFORM ================= */
-            if ("org.joget.apps.form.lib.SubForm".equals(className)) {
-
-                String sfDefId = props.optString("formDefId");
-
-                if (Validator.isNotNullOrEmpty(sfDefId)) {
-                    JSONObject subFormJson = this.getJsonFormCached(sfDefId);
-                    if (subFormJson != null) {
-                        JSONArray subElements = subFormJson.optJSONArray("elements");
-                        if (subElements != null) {
-                            walkElements(subElements, result, true, sfDefId);
-                        }
-                    }
-                }
-                continue;
-            }
-
-            /* ================= FIELD (NORMAL / SUBFORM) ================= */
-            if (className.startsWith("org.joget.apps.form.lib")
-                    || className.startsWith("com.kinnarastudio")) {
-
-                String fieldId = props.optString("id");
-                if (Validator.isNullOrEmpty(fieldId)) continue;
-
-                Map<String, Object> meta = new HashMap<>();
-
-                /* === COMMON META === */
-                meta.put("readonly", "true".equalsIgnoreCase(props.optString("readonly")));
-                meta.put("isHidden", "true".equalsIgnoreCase(props.optString("hidden")));
-                meta.put("className", className);
-
-                boolean mandatory = false;
-                boolean isNumeric = false;
-                if (props.has("validator")) {
-                    JSONObject v = props.getJSONObject("validator").optJSONObject("properties");
-                    if (v != null) {
-                        mandatory = "true".equalsIgnoreCase(v.optString("mandatory"));
-                    }
-                    String vClassName = props.getJSONObject("validator").optString("className");
-                    if (Validator.isNotNullOrEmpty(vClassName)){
-                        if (vClassName.contains("NumericValidator")){
-                            isNumeric = true;
-                        }
-                    }
-                }
-                meta.put("mandatory", mandatory);
-
-                String type = DataTablesUtil.CLASSNAME_TYPE_MAP
-                        .getOrDefault(className, "text");
-                if (isNumeric){
-                    type = "number";
-                }
-                meta.put("type", type);
-
-                if ("select".equals(type)) {
-                    JSONArray options = props.optJSONArray("options");
-                    if (Validator.isNullOrEmpty(options)){
-                        try {
-                            options = this.getJsonOptionsCached(element, fieldId);
-                        } catch (Exception e) {
-                            LogUtil.error(DataTablesMenuBiz.class.getName(), e, "Error parsing element form options binder");
-                        }
-                    }
-                    meta.put("options", options);
-                }
-
-                Map<String, Object> formatter = new HashMap<>();
-                String formatStyle = props.optString("style");
-                if (Validator.isNotNullOrEmpty(formatStyle)){
-                    formatter.put("style", formatStyle);
-                    formatter.put("useThousandSeparator", "true".equalsIgnoreCase(props.optString("useThousandSeparator")));
-                    formatter.put("numOfDecimal", props.optString("numOfDecimal"));
-
-                    meta.put("formatter", formatter);
-                }else {
-                    meta.put("formatter", null);
-                }
-
-                /* === calculationLoadBinder === */
-                if (props.has("calculationLoadBinder")) {
-                    JSONObject calc = props.getJSONObject("calculationLoadBinder");
-                    Map<String, Object> calcMeta = new HashMap<>();
-                    calcMeta.put("className", calc.optString("className"));
-
-                    JSONObject cp = calc.optJSONObject("properties");
-                    if (cp != null) {
-                        calcMeta.put("equation", cp.optString("equation"));
-                        calcMeta.put("debug", cp.optString("debug"));
-                    }
-                    if (props.has("variables")) {
-                        calcMeta.put("variables", props.getJSONArray("variables"));
-                    }
-                    meta.put("calculationLoadBinder", calcMeta);
-                } else {
-                    meta.put("calculationLoadBinder", null);
-                }
-
-                /* ================= SUBFORM CONTEXT FLAG ================= */
-                meta.put("isSubForm", inSubForm);
-                if (inSubForm) {
-                    meta.put("formDefId", subFormDefId);
-                }
-
-                result.put(fieldId, meta);
-            }
-
-            /* ================= CHILD ELEMENTS ================= */
-            if (element.has("elements")) {
-                walkElements(element.getJSONArray("elements"), result, inSubForm, subFormDefId);
-            }
-        }
-    }
-
-    protected JSONObject getJsonFormCached(String formDefId) {
-        long now = System.currentTimeMillis();
-        CachedFormJson cached = FORM_JSON_CACHE.get(formDefId);
-
-        if (cached != null && cached.expireAt > now) {
-            return cached.json;
-        }
-
-        JSONObject json = getJsonForm(formDefId);
-        if (json != null && json.length() > 0) {
-            FORM_JSON_CACHE.put(
-                    formDefId,
-                    new CachedFormJson(json, now + FORM_CACHE_TTL)
-            );
-        }
-
-        return json;
-    }
-
-    protected JSONArray getJsonOptionsCached(JSONObject element, String fieldId) throws Exception {
-        long now = System.currentTimeMillis();
-        CachedElementOptions cached = OPTIONS_JSON_CACHE.get(fieldId);
-
-        if (cached != null && cached.expireAt > now) {
-            return cached.jsonArray;
-        }
-
-        JSONArray jsonArray = getElementOptions(element, fieldId);
-        if (Validator.isNotNullOrEmpty(jsonArray)) {
-            OPTIONS_JSON_CACHE.put(
-                    fieldId,
-                    new CachedElementOptions(jsonArray, now + FORM_CACHE_TTL)
-            );
-        }
-
-        return jsonArray;
-    }
-
-    private JSONArray getElementOptions(JSONObject element, String fieldId) throws Exception {
-        final Element el = FormUtil.findAndParseElementFromJsonObject(element, fieldId);
-        LogUtil.warn(getClassName(), "DataTablesGridElement fieldMeta select element [" + el.toString() + "]");
-        final FormData formData = getFormService().executeFormOptionsBinders(el, new FormData());
-        final Collection<FormRow> optionMap = FormUtil.getElementPropertyOptionsMap(el, formData);
-        return optionMap.stream()
-                .map(row -> {
-                    LogUtil.warn(getClassName(), "DataTablesGridElement fieldMeta select element row [" + row.toString() + "]");
-                    JSONObject o = new JSONObject();
-                    try {
-                        o.put("value", row.getProperty("value"));
-                        o.put("label", row.getProperty("label"));
-                    } catch (JSONException e) {
-                        LogUtil.error(DataTablesMenuBiz.class.getName(), e, "Error parsing element form options binder");
-                    }
-                    return o;
-                })
-                .collect(
-                        JSONArray::new,
-                        JSONArray::put,
-                        JSONArray::put
-                );
-    }
-
     public JSONObject calculationLoadBinder(JSONObject body, AppDefinition appDefinition, PluginManager pluginManager) throws RestApiException, JSONException {
         String formDefId = body.getString("formDefId");
         String fieldId = body.getString("fieldId");
@@ -435,10 +209,5 @@ public class DataTablesMenuBiz {
         data.put("value", value.toPlainString());
         data.put("mask_value", formattedValue);
         return data;
-    }
-
-    private FormService getFormService() {
-        ApplicationContext appContext = AppUtil.getApplicationContext();
-        return (FormService) appContext.getBean("formService");
     }
 }

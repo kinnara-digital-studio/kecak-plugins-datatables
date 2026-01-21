@@ -19,6 +19,9 @@
         formDefId: null,
         editingCell: null,
 
+        appId: null,
+        appVersion: null,
+
         /* ================= CORE INIT ================= */
         init: function (opts, dataRows) {
             if (!opts || !opts.table) throw new Error('DataTable instance is required');
@@ -32,6 +35,8 @@
             this.formDefId        = opts.formDefId;
             this.BASE_URL         = opts.baseUrl;
             this.CALCULATION_URL  = opts.calculationUrl;
+            this.appId            = opts.appId;
+            this.appVersion       = opts.appVersion;
 
             this.FIELD_MAP = opts.fieldMap || this._buildFieldMap(opts.columns);
 
@@ -230,6 +235,7 @@
 
             this.applyValueToCell($td, rawValue, meta);
             this.syncJsonRow(rowIndex, field, rawValue);
+            this.triggerAutofill(field, rowIndex, rawValue, rowData);
             this.triggerCalculate(field, rowIndex, rowData);
         },
 
@@ -301,6 +307,62 @@
                 },
                 error: function(err) {
                     console.error(`Calculation failed for field: ${field}`, err);
+                }
+            });
+        },
+
+        triggerAutofill: function (field, rowIndex, value, rowData) {
+            const meta = this.FIELD_META[field];
+            const autofill = meta?.autofillLoadBinder;
+            const serviceUrl = autofill?.serviceUrl;
+
+            if (!autofill || value == null || value === '') return;
+
+            const selectedId = value;
+            if (selectedId == null || selectedId === '') return;
+
+            const payload = {
+                appId: this.appId,
+                appVersion: this.appVersion,
+                id: selectedId,
+                FIELD_ID: field,
+                FORM_ID: this.formDefId,
+                SECTION_ID: meta.sectionId,
+                requestParameter: {}
+            };
+
+            const self = this;
+
+            $.ajax({
+                url: self.BASE_URL + serviceUrl,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: function (res) {
+                    if (!res || typeof res !== 'object') return;
+
+                    (autofill.fields || []).forEach(map => {
+                        const resultValue = res[map.resultField];
+                        if (resultValue == null) return;
+
+                        const targetField = map.formField;
+                        rowData[targetField] = resultValue;
+
+                        self.syncJsonRow(rowIndex, targetField, resultValue);
+
+                        const rowNode = self.table.row(rowIndex).node();
+                        const $cell = $(rowNode).find(`td[data-field="${targetField}"]`);
+                        const targetMeta = self.FIELD_META[targetField];
+
+                        if ($cell.length && targetMeta && !$cell.hasClass('editing')) {
+                            self.applyValueToCell($cell, resultValue, targetMeta);
+                        }
+
+                        self.triggerCalculate(targetField, rowIndex, rowData);
+                    });
+                },
+                error: function (err) {
+                    console.error(`Autofill failed for field ${field}`, err);
                 }
             });
         },

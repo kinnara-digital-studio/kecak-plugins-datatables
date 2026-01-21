@@ -8,7 +8,9 @@ import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.form.dao.FormDataDao;
 import org.joget.apps.form.model.Element;
 import org.joget.apps.form.model.Form;
+import org.joget.apps.form.model.FormData;
 import org.joget.apps.form.service.FormService;
+import org.joget.apps.form.service.FormUtil;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -65,5 +67,14 @@ public class DataTablesGridBinderBiz {
             propertyName = "customProperties." + propertyName;
         }
         return propertyName;
+    }
+
+    public String getKeyValue(FormData formData, Element element, String key) {
+        String keyValue = null;
+        Element el = FormUtil.findElement(key, element, formData);
+        if (el != null) {
+            keyValue = FormUtil.getElementPropertyValue(el, formData);
+        }
+        return keyValue;
     }
 }

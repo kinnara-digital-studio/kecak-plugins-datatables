@@ -27,17 +27,6 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class DataTablesUtil {
-    public static final Map<String, String> CLASSNAME_TYPE_MAP = Map.ofEntries(
-            Map.entry("org.joget.apps.form.lib.TextField", "text"),
-            Map.entry("org.joget.apps.form.lib.TextArea", "textarea"),
-            Map.entry("org.joget.apps.form.lib.SelectBox", "select"),
-            Map.entry("org.joget.apps.form.lib.CheckBox", "checkbox"),
-            Map.entry("org.joget.apps.form.lib.Radio", "radio"),
-            Map.entry("org.joget.apps.form.lib.DatePicker", "date"),
-            Map.entry("org.joget.apps.form.lib.NumberField", "number"),
-            Map.entry("com.kinnarastudio.kecakplugins.autofillselectbox.AutofillSelectBox", "select")
-    );
-
     /**
      * Generate plugins
      * @param elementSelect
