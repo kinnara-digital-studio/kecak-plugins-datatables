@@ -28,6 +28,9 @@
         isSaving: false,
         fieldCalculateMap: null,
 
+        appId: null,
+        appVersion: null,
+
         /* ================= INIT ================= */
         init: function (opts) {
             Object.assign(this, {
@@ -43,7 +46,9 @@
                 createFormDefId: opts.createFormDefId,
                 editFormDefId: opts.editFormDefId,
                 jsonForm: opts.jsonForm,
-                nonce: opts.nonce
+                nonce: opts.nonce,
+                appId:  opts.appId,
+                appVersion: opts.appVersion
             });
 
             this.fieldCalcMap();
@@ -139,6 +144,17 @@
                 const $wrapper = $(e.currentTarget).closest('.dt-action-wrapper');
                 this.submitTask($wrapper.data('activity-id'), $wrapper.find('.dt-action-select').val());
             });
+
+            // Autofill select handler
+            $(document).on('change', '.cell-editor', (e) => {
+                const $editor = $(e.currentTarget);
+                const $cell = $editor.closest('td');
+                const meta = $cell.data('meta');
+
+                if (meta?.autofillLoadBinder && meta.type === 'select') {
+                    this.handleAutofill($cell, $editor.val(), meta);
+                }
+            });
         },
 
         /* ================= INLINE EDIT ================= */
@@ -176,11 +192,12 @@
                     return;
                 }
                 this.doSave(newValue);
-            }, 300);
+            }, 100);
         },
 
         doSave: function (newValue) {
             this.isSaving = true;
+            const self = this;
             const $cell = this.editingCell;
             const field = $cell.data('field');
             const id = $cell.data('id');
@@ -208,7 +225,12 @@
                 contentType: 'application/json',
                 data: JSON.stringify(body),
                 success: () => {
-                    Object.entries(body).forEach(([f, v]) => this.commitRowChange(f, v));
+                    // Object.entries(body).forEach(([f, v]) => this.commitRowChange(f, v));
+                    Object.keys(body).forEach(([field, value])  => {
+                        const fm = self.FIELD_META[field];
+                        const commitValue = (fm && fm.type === 'date') ? newValue : value;
+                        this.commitRowChange(field, commitValue);
+                    });
                     this.calculatedRowData = null;
                     this.applyValue($cell, newValue, meta);
                     $cell.addClass('saved');
@@ -224,7 +246,6 @@
         },
 
         commitRowChange: function (field, value) {
-            debugger;
             const row = this.table.row(this.editingCell.closest('tr'));
             const data = row.data();
             const meta = this.FIELD_META[field];
@@ -450,6 +471,60 @@
             if (!node) return null;
             const $cell = $(node).find(`td[data-field="${field}"]`);
             return $cell.length ? $cell : null;
+        },
+
+        handleAutofill: function ($cell, selectedValue, meta) {
+            const autofill = meta.autofillLoadBinder;
+            if (!autofill) return;
+
+            const serviceUrl = autofill.serviceUrl;
+            if (!serviceUrl) return;
+
+            const $row = this.table.row($cell.closest('tr'));
+            const rowData = $.extend({}, $row.data());
+
+            const payload = {
+                appId: this.jsonForm?.properties?.appId,
+                appVersion: this.jsonForm?.properties?.appVersion,
+                id: selectedValue,
+                FIELD_ID: $cell.data('field'),
+                FORM_ID: meta.isSubForm ? meta.formDefId : this.editFormDefId,
+                SECTION_ID: meta.sectionId,
+                requestParameter: {}
+            };
+
+            $.ajax({
+                url: serviceUrl,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: (res) => {
+                    if (!res || typeof res !== 'object') return;
+
+                    (autofill.fields || []).forEach(map => {
+                        const targetField = map.formField;
+                        const sourceKey = map.resultField;
+
+                        if (!(sourceKey in res)) return;
+
+                        const value = res[sourceKey];
+                        const targetMeta = this.FIELD_META[targetField];
+                        if (!targetMeta) return;
+
+                        rowData[targetField] = value;
+
+                        const cell = this.findCellByField(targetField, $row);
+                        if (cell && !cell.hasClass('editing')) {
+                            this.applyValue(cell, value, targetMeta);
+                        }
+                    });
+
+                    $row.data(rowData).invalidate();
+                },
+                error: (err) => {
+                    console.error('Autofill failed', err);
+                }
+            });
         }
     };
 })();

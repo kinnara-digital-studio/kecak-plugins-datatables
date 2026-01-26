@@ -48,17 +48,20 @@
 </div>
 <script>
 $(function () {
-    var FIELD_META = ${fieldMeta};
-    var USER_ID = '${userId}';
-    var CAN_EDIT = ${permissionToEdit?string("true","false")};
-    var MENU_TYPE = '${menuType}';
+    /* ================= GLOBAL ================= */
+    const FIELD_META = ${fieldMeta};
+    const USER_ID    = '${userId}';
+    const CAN_EDIT   = ${permissionToEdit?string("true","false")};
+    const MENU_TYPE  = '${menuType}';
 
-    var WORKFLOW_VARIABLES = [];
-    if (FIELD_META.status && Array.isArray(FIELD_META.status.options)) {
-        WORKFLOW_VARIABLES = FIELD_META.status.options;
-    }
+    /* ================= WORKFLOW VARIABLES ================= */
+    const WORKFLOW_VARIABLES =
+        FIELD_META.status?.options && Array.isArray(FIELD_META.status.options)
+            ? FIELD_META.status.options
+            : [];
 
-    var INLINE_TABLE_OPTS = {
+    /* ================= DATATABLE FACTORY ================= */
+    const INLINE_TABLE_OPTS = {
         fieldMeta   : FIELD_META,
         menuType    : MENU_TYPE,
         baseUrl     : '${request.contextPath}',
@@ -70,50 +73,49 @@ $(function () {
         activityDefIds   : '${activityDefIds!}',
 
         canEdit     : CAN_EDIT,
+        workflowVariables : WORKFLOW_VARIABLES,
 
         columns : [
             <#list dataList.columns as column>
-            {
-                name  : '${column.name}',
-                label : '${column.label}'
-            }<#if column_has_next>,</#if>
+            { name: '${column.name}', label: '${column.label}' }<#if column_has_next>,</#if>
             </#list>
-        ],
-
-        workflowVariables : WORKFLOW_VARIABLES
+        ]
     };
 
-    // ================= INIT TABLE =================
-    var table = DataTablesFactory.create(INLINE_TABLE_OPTS);
+    const table = DataTablesFactory.create(INLINE_TABLE_OPTS);
 
-    var DATATABLES_CONFIG = {}
-    if (MENU_TYPE === "inboxMenu"){
-        DATATABLES_CONFIG.table = table;
-        DATATABLES_CONFIG.fieldMeta = FIELD_META;
-        DATATABLES_CONFIG.editable = true;
-        DATATABLES_CONFIG.editFormDefId = '${editFormDefId!}';
-        DATATABLES_CONFIG.baseUrl = '${request.contextPath}';
-        DATATABLES_CONFIG.calculationUrl = '${calculationUrl}';
-        DATATABLES_CONFIG.editFormUrl = '${editFormUrl!}';
-        DATATABLES_CONFIG.submitTaskUrl = '${submitTaskUrl!}';
-        DATATABLES_CONFIG.userId = USER_ID;
-    }else {
-        DATATABLES_CONFIG.table = table;
-        DATATABLES_CONFIG.fieldMeta = FIELD_META;
-        DATATABLES_CONFIG.editable = CAN_EDIT;
-        DATATABLES_CONFIG.createFormDefId = '${createFormDefId!}';
-        DATATABLES_CONFIG.editFormDefId = '${editFormDefId!}';
-        DATATABLES_CONFIG.baseUrl = '${request.contextPath}';
-        DATATABLES_CONFIG.calculationUrl = '${calculationUrl}';
-        DATATABLES_CONFIG.addFormUrl = '${addFormUrl!}';
-        DATATABLES_CONFIG.editFormUrl = '${editFormUrl!}';
-        DATATABLES_CONFIG.jsonForm = '${jsonForm!}';
-        DATATABLES_CONFIG.nonce = '${nonce!}';
+    /* ================= BASE CONFIG ================= */
+    const DATATABLES_CONFIG = {
+        table          : table,
+        fieldMeta      : FIELD_META,
+        baseUrl        : '${request.contextPath}',
+        calculationUrl : '${calculationUrl}',
+        editFormUrl    : '${editFormUrl!}',
+
+        appId      : '${appId!}',
+        appVersion : '${appVersion!}'
+    };
+
+    /* ================= MENU TYPE OVERRIDE ================= */
+    if (MENU_TYPE === 'inboxMenu') {
+        Object.assign(DATATABLES_CONFIG, {
+            editable        : true,
+            editFormDefId   : '${editFormDefId!}',
+            submitTaskUrl  : '${submitTaskUrl!}',
+            userId         : USER_ID
+        });
+    } else {
+        Object.assign(DATATABLES_CONFIG, {
+            editable        : CAN_EDIT,
+            createFormDefId : '${createFormDefId!}',
+            editFormDefId   : '${editFormDefId!}',
+            addFormUrl      : '${addFormUrl!}',
+            jsonForm        : '${jsonForm!}',
+            nonce           : '${nonce!}'
+        });
     }
 
-    /* ================= INIT DATATABLES CONTROLLER ================= */
+    /* ================= INIT CONTROLLER ================= */
     DataTablesMenuController.init(DATATABLES_CONFIG);
-
-
 });
 </script>
