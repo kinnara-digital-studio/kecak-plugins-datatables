@@ -167,6 +167,11 @@
                         if (meta.formatter) {
                             return this.formatNumber(data, meta);
                         }
+
+                        // FILE UPLOAD (READONLY)
+                        if (meta.type === 'file') {
+                            return this.renderFileValue(data);
+                        }
                     }
                     return data;
                 },
@@ -272,6 +277,48 @@
             const dd = String(date.getDate()).padStart(2, '0');
             const mm = String(date.getMonth() + 1).padStart(2, '0');
             return `${mm}/${dd}/${date.getFullYear()}`;
-        }
+        },
+
+        renderFileValue: function (value) {
+            if (!value) return '';
+
+            const files = String(value).split(';');
+
+            return files.map(rawUrl => {
+                if (!rawUrl) return '';
+
+                const url   = rawUrl.replace(/\.+$/, '');
+                const lower = url.toLowerCase();
+                const name  = url.split('/').pop();
+
+                if (
+                    lower.endsWith('.png') ||
+                    lower.endsWith('.jpg') ||
+                    lower.endsWith('.jpeg')
+                ) {
+                    return `
+                <img
+                    src="${rawUrl}"
+                    alt="${name}"
+                    style="
+                        max-width:120px;
+                        max-height:120px;
+                        display:block;
+                        margin-bottom:4px;
+                        border-radius:4px;
+                    "
+                />
+            `;
+                }
+
+                // OTHER FILE
+                return `
+            <a href="${url}" download target="_blank">
+                📎 ${name}
+            </a>
+        `;
+            }).join('<br>');
+        },
+
     };
 })();

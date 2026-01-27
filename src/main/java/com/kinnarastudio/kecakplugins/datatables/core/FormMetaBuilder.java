@@ -244,6 +244,11 @@ public class FormMetaBuilder {
             meta.put("formDefId", subFormDefId);
         }
 
+        /* ===== FILE ===== */
+        if (FormElementType.isFileUpload(className)){
+            meta.put("readonly", true);
+        }
+
         result.put(fieldId, meta);
     }
 

@@ -8,10 +8,12 @@ public enum FormElementType {
             "org.joget.apps.form.model.Section",
             "section"
     ),
+
     SUBFORM(
             "org.joget.apps.form.lib.SubForm",
             "subform"
     ),
+
     TEXT_FIELD(
             "org.joget.apps.form.lib.TextField",
             "text"
@@ -50,6 +52,11 @@ public enum FormElementType {
     AUTOFILL_SELECT_BOX(
             "com.kinnarastudio.kecakplugins.autofillselectbox.AutofillSelectBox",
             "select"
+    ),
+
+    FILE(
+            "org.joget.apps.form.lib.FileUpload",
+                    "file"
     );
 
     private final String className;
@@ -95,6 +102,12 @@ public enum FormElementType {
     public static boolean isSubForm(String className) {
         return fromClassName(className)
                 .map(e -> e == SUBFORM)
+                .orElse(false);
+    }
+
+    public static boolean isFileUpload(String className) {
+        return fromClassName(className)
+                .map(e -> e == FILE)
                 .orElse(false);
     }
 }
