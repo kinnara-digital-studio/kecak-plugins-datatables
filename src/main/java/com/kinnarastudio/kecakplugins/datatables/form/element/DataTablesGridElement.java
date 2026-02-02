@@ -6,28 +6,18 @@ import com.kinnarastudio.commons.jsonstream.JSONStream;
 import com.kinnarastudio.commons.jsonstream.model.JSONObjectEntry;
 import com.kinnarastudio.kecakplugins.datatables.core.FormMetaBuilder;
 import com.kinnarastudio.kecakplugins.datatables.userview.DataTablesMenu;
-import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
-import com.kinnarastudio.kecakplugins.datatables.util.Validator;
-import org.joget.apps.app.dao.FormDefinitionDao;
-import org.joget.apps.app.dao.PackageDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
-import org.joget.apps.app.model.FormDefinition;
-import org.joget.apps.app.model.PackageDefinition;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.form.model.*;
-import org.joget.apps.form.service.FormService;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
 import org.joget.plugin.base.PluginWebSupport;
-import org.joget.workflow.model.WorkflowAssignment;
-import org.joget.workflow.model.service.WorkflowManager;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
@@ -41,15 +31,7 @@ public class DataTablesGridElement extends Element implements FormBuilderPalette
     private final static String CATEGORY = "Kecak";
     protected Map<FormData, FormRowSet> cachedRowSet = new HashMap<>();
 
-    private transient DataTablesMenuBiz dataTablesMenuBiz;
     private transient FormMetaBuilder formMetaBuilder;
-
-    protected DataTablesMenuBiz dataTablesMenuBiz() {
-        if (dataTablesMenuBiz == null) {
-            dataTablesMenuBiz = new DataTablesMenuBiz();
-        }
-        return dataTablesMenuBiz;
-    }
 
     protected FormMetaBuilder formMetaBuilder() {
         if (formMetaBuilder == null) {
