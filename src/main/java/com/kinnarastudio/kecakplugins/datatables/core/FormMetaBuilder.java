@@ -1,9 +1,12 @@
 package com.kinnarastudio.kecakplugins.datatables.core;
 
-import com.kinnarastudio.commons.Try;
-import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
-import com.kinnarastudio.kecakplugins.datatables.util.Validator;
-import com.kinnarastudio.kecakplugins.datatables.util.enums.FormElementType;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Optional;
+
+import javax.annotation.Nullable;
+
 import org.joget.apps.app.dao.FormDefinitionDao;
 import org.joget.apps.app.dao.PackageDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
@@ -24,11 +27,10 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.context.ApplicationContext;
 
-import javax.annotation.Nullable;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
+import com.kinnarastudio.commons.Try;
+import com.kinnarastudio.kecakplugins.datatables.userview.biz.DataTablesMenuBiz;
+import com.kinnarastudio.kecakplugins.datatables.util.Validator;
+import com.kinnarastudio.kecakplugins.datatables.util.enums.FormElementType;
 
 /**
  *  META BUILDER
@@ -247,6 +249,19 @@ public class FormMetaBuilder {
         /* ===== FILE ===== */
         if (FormElementType.isFileUpload(className)){
             meta.put("readonly", true);
+        }
+
+        /* ===== USE JS EQUATION ===== */
+        if (props.has("useJsEquation")) {
+            meta.put("useJsEquation", props.optString("useJsEquation"));
+            meta.put("jsEquation", props.optString("jsEquation"));
+
+            /* ===== NUMERIC CONFIG ===== */
+            if (props.has("roundNumber")) {
+                meta.put("roundNumber", props.optString("roundNumber"));
+                meta.put("roundingMode", props.optString("roundingMode"));
+                meta.put("decimalPlaces", props.optString("decimalPlaces"));
+            } 
         }
 
         result.put(fieldId, meta);
