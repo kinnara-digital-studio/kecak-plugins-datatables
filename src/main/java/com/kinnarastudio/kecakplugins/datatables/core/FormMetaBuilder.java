@@ -251,19 +251,6 @@ public class FormMetaBuilder {
             meta.put("readonly", true);
         }
 
-        /* ===== USE JS EQUATION ===== */
-        if (props.has("useJsEquation")) {
-            meta.put("useJsEquation", props.optString("useJsEquation"));
-            meta.put("jsEquation", props.optString("jsEquation"));
-
-            /* ===== NUMERIC CONFIG ===== */
-            if (props.has("roundNumber")) {
-                meta.put("roundNumber", props.optString("roundNumber"));
-                meta.put("roundingMode", props.optString("roundingMode"));
-                meta.put("decimalPlaces", props.optString("decimalPlaces"));
-            } 
-        }
-
         result.put(fieldId, meta);
     }
 
@@ -311,24 +298,53 @@ public class FormMetaBuilder {
      * CALCULATION
      * ========================================================== */
     private Map<String, Object> resolveCalculationBinder(JSONObject props) {
-        if (!props.has("calculationLoadBinder")) return null;
-
         JSONObject calc = props.optJSONObject("calculationLoadBinder");
-        Map<String, Object> meta = new HashMap<>();
 
-        meta.put("className", calc.optString("className"));
+        boolean hasValidCalculationBinder =
+                calc != null
+                && Validator.isNotNullOrEmpty(calc.optString("className"))
+                && Validator.isNotNullOrEmpty(calc.optJSONObject("properties"));
 
-        JSONObject cp = calc.optJSONObject("properties");
-        if (Validator.isNotNullOrEmpty(cp)) {
+        if (!hasValidCalculationBinder) {
+            // === TREAT AS NO calculationLoadBinder ===
+            if (props.has("useJsEquation")) {
+                Map<String, Object> meta = new HashMap<>();
+                meta.put("useJsEquation", props.optString("useJsEquation"));
+                meta.put("equation", props.optString("jsEquation"));
+
+                Map<String, Object> roundNumber = new HashMap<>();
+
+                if (Validator.isNotNullOrEmpty(props.optString("roundNumber"))) {
+                    roundNumber.put("roundNumber", props.optString("roundNumber"));
+                    roundNumber.put("roundingMode", props.optString("roundingMode"));
+                    roundNumber.put("decimalPlaces", props.optString("decimalPlaces"));
+                    meta.put("roundNumber", roundNumber);
+                }
+
+                if (props.has("variables")) {
+                    meta.put("variables", props.optJSONArray("variables"));
+                }
+
+                return meta;
+            }
+            return null;
+
+        } else {
+            // === calculationLoadBinder VALID ===
+            Map<String, Object> meta = new HashMap<>();
+
+            meta.put("className", calc.optString("className"));
+
+            JSONObject cp = calc.optJSONObject("properties");
             meta.put("equation", cp.optString("equation"));
             meta.put("debug", cp.optString("debug"));
-        }
 
-        if (props.has("variables")) {
-            meta.put("variables", props.optJSONArray("variables"));
-        }
+            if (props.has("variables")) {
+                meta.put("variables", props.optJSONArray("variables"));
+            }
 
-        return meta;
+            return meta;
+        }
     }
 
     /* ==========================================================
