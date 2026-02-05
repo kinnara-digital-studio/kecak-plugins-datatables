@@ -275,6 +275,46 @@
             const calc = meta?.calculationLoadBinder;
             if (!calc) return;
 
+            if (calc?.useJsEquation === "true" && calc?.equation) {
+                try {
+                    const argNames = [];
+                    const argValues = [];
+
+                    calc.variables?.forEach(v => {
+                        argNames.push(v.variableName);
+                        const rawVal = rowData[v.variableName];
+                        const numVal = DataTablesFactory.normalizeNumber(rawVal) || 0;
+                        argValues.push(numVal);
+                    });
+
+                    const equationFormula = calc.equation;
+                    const func = new Function(...argNames, `return ${equationFormula};`);
+                    let result = func(...argValues);
+
+                    if (calc.roundNumber?.roundNumber === "true") {
+                        const decimals = parseInt(calc.roundNumber.decimalPlaces) || 0;
+                        const factor = Math.pow(10, decimals);
+                        result = Math.floor(result * factor) / factor;
+                    }
+
+                    if (!isFinite(result)) result = 0;
+
+                    rowData[field] = result;
+                    self.syncJsonRow(rowIndex, field, result);
+
+                    const rowNode = self.table.row(rowIndex).node();
+                    const $cell = $(rowNode).find(`td[data-field="${field}"]`);
+                    if ($cell.length && !$cell.hasClass('editing')) {
+                        self.applyValueToCell($cell, result, meta);
+                    }
+
+                    self.triggerCalculate(field, rowIndex, rowData);
+
+                } catch (err) {
+                    console.error(`Client-side calculation error for field ${field}:`, err);
+                }
+                return;
+            } else {
             const params = {};
             calc.variables.forEach(v => {
                 params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]);
@@ -309,6 +349,7 @@
                     console.error(`Calculation failed for field: ${field}`, err);
                 }
             });
+        }
         },
 
         triggerAutofill: function (field, rowIndex, value, rowData) {
