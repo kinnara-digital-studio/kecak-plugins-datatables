@@ -156,6 +156,22 @@ public class FormMetaBuilder {
         JSONObject props = element.optJSONObject("properties");
         String currentSectionId = props != null ? props.optString("id") : sectionId;
 
+        /* ==========================================================
+        * EXTRACT VISIBILITY META
+        * ========================================================== */
+        if (props != null && props.has("visibilityControl")) {
+            Map<String, Object> visibilityMeta = new HashMap<>();
+            visibilityMeta.put("id", currentSectionId);
+            visibilityMeta.put("type", "section");
+            visibilityMeta.put("visibilityControl", props.optString("visibilityControl"));
+            visibilityMeta.put("visibilityValue", props.optString("visibilityValue"));
+            visibilityMeta.put("join", props.optString("join"));
+            visibilityMeta.put("regex", props.optString("regex"));
+            visibilityMeta.put("reverse", props.optString("reverse"));
+
+            result.put(currentSectionId, visibilityMeta);
+        }
+
         if (element.has("elements")) {
             walkElements(
                     element.getJSONArray("elements"),
@@ -215,6 +231,7 @@ public class FormMetaBuilder {
         Map<String, Object> meta = new HashMap<>();
 
         /* ===== BASIC ===== */
+        meta.put("fieldId", fieldId);
         meta.put("sectionId", sectionId);
         meta.put("className", className);
         meta.put("readonly", isTrue(props, "readonly"));
@@ -235,7 +252,7 @@ public class FormMetaBuilder {
         meta.put("formatter", resolveFormatter(props));
 
         /* ===== CALCULATION ===== */
-        meta.put("calculationLoadBinder", resolveCalculationBinder(props));
+        meta.put("calculationLoadBinder", resolveCalculationBinder(props, sectionId));
 
         /* ===== AUTOFILL ===== */
         meta.put("autofillLoadBinder", resolveAutofillBinder(props));
@@ -251,7 +268,10 @@ public class FormMetaBuilder {
             meta.put("readonly", true);
         }
 
-        result.put(fieldId, meta);
+        /* ===== USE COMPOSITE KEY FOR RESULT MAP ===== */
+        String compositeKey = (Validator.isNotNullOrEmpty(sectionId)) ? sectionId + "_" + fieldId : fieldId;
+        result.put(compositeKey, meta);
+        // result.put(fieldId, meta);
     }
 
     /* ==========================================================
@@ -297,8 +317,27 @@ public class FormMetaBuilder {
     /* ==========================================================
      * CALCULATION
      * ========================================================== */
-    private Map<String, Object> resolveCalculationBinder(JSONObject props) {
+    private Map<String, Object> resolveCalculationBinder(JSONObject props, String sectionId) {
         JSONObject calc = props.optJSONObject("calculationLoadBinder");
+
+        JSONArray originalVars = props.optJSONArray("variables");
+        JSONArray mappedVars = new JSONArray();
+
+        // Map variables to include targetCompositeKey
+        if (originalVars != null) {
+            for (int i = 0; i < originalVars.length(); i++) {
+                try {
+                    JSONObject varObj = new JSONObject(originalVars.getJSONObject(i).toString());
+                    String varName = varObj.optString("variableName");
+                    varObj.put("targetCompositeKey", (Validator.isNotNullOrEmpty(sectionId) ? sectionId + "_" : "") + varName);
+                    mappedVars.put(varObj);
+                } catch (Exception e) {
+                LogUtil.error(
+                        DataTablesMenuBiz.class.getName(),
+                        e, e.getMessage());
+                }
+            }
+        }
 
         boolean hasValidCalculationBinder =
                 calc != null
@@ -311,20 +350,15 @@ public class FormMetaBuilder {
                 Map<String, Object> meta = new HashMap<>();
                 meta.put("useJsEquation", props.optString("useJsEquation"));
                 meta.put("equation", props.optString("jsEquation"));
-
+                meta.put("variables", mappedVars);
                 Map<String, Object> roundNumber = new HashMap<>();
 
                 if (Validator.isNotNullOrEmpty(props.optString("roundNumber"))) {
-                    roundNumber.put("roundNumber", props.optString("roundNumber"));
+                    roundNumber.put("isRoundNumber", props.optString("roundNumber"));
                     roundNumber.put("roundingMode", props.optString("roundingMode"));
                     roundNumber.put("decimalPlaces", props.optString("decimalPlaces"));
                     meta.put("roundNumber", roundNumber);
                 }
-
-                if (props.has("variables")) {
-                    meta.put("variables", props.optJSONArray("variables"));
-                }
-
                 return meta;
             }
             return null;
@@ -332,16 +366,12 @@ public class FormMetaBuilder {
         } else {
             // === calculationLoadBinder VALID ===
             Map<String, Object> meta = new HashMap<>();
-
             meta.put("className", calc.optString("className"));
 
             JSONObject cp = calc.optJSONObject("properties");
             meta.put("equation", cp.optString("equation"));
             meta.put("debug", cp.optString("debug"));
-
-            if (props.has("variables")) {
-                meta.put("variables", props.optJSONArray("variables"));
-            }
+            meta.put("variables", mappedVars);
 
             return meta;
         }

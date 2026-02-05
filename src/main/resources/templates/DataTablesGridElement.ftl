@@ -43,54 +43,48 @@
 
         </div>
 
-        <script>
-            $(function () {
-                var FIELD_META = ${fieldMeta};
-
-                var existingData = [
-                    <#list dataRows![] as row>
-                    {
-                        <#list row?keys as key>
-                            "${key?js_string}": "${row[key]?js_string}"<#if key_has_next>,</#if>
-                        </#list>
-                    }<#if row_has_next>,</#if>
+    <script>
+        $(function () {
+            var FIELD_META = ${fieldMeta};
+            
+            var rawDataRows = [
+                <#list dataRows![] as row>
+                {
+                    <#list row?keys as key>
+                        "${key?js_string}": "${row[key]?js_string}"<#if key_has_next>,</#if>
                     </#list>
-                ];
+                }<#if row_has_next>,</#if>
+                </#list>
+            ];
 
-                if (!$.fn.DataTable) return;
+            var columns = [
+                <#list element.properties.options![] as column>
+                { name: '${column.value!}', label: '${column.label!}' }<#if column_has_next>,</#if>
+                </#list>
+            ];
 
-                var tableEl = $("#${elementId}");
-
-                var columns = [
-                    <#list element.properties.options![] as column>
-                    {
-                        name  : '${column.value!}',
-                        label : '${column.label!}'
-                    }<#if column_has_next>,</#if>
-                    </#list>
-                ];
-
-                var table = DataTablesFactory.create({
-                    menuType: 'inlineGrid',
-                    tableElement: tableEl,
-                    fieldMeta: FIELD_META,
-                    columns: columns,
-                    data: []
-                });
-
-                DataTablesGridController.init({
-                    table: table,
-                    columns: columns,
-                    elementId: '${elementId!}',
-                    elementParamName: '${elementParamName!}',
-                    formGridId: '${formGridId!}',
-                    fieldMeta: FIELD_META,
-                    formDefId: '${formDefId!}',
-                    baseUrl: '${request.contextPath}',
-                    calculationUrl: '${calculationUrl}',
-                    appId: '${appId!}',
-                    appVersion: '${appVersion!}'
-                }, existingData);
+            // 1. Create Machine
+            var table = DataTablesFactory.create({
+                menuType: 'inlineGrid',
+                tableElement: $("#${elementId}"),
+                fieldMeta: FIELD_META,
+                columns: columns
             });
-        </script>
+
+            // 2. Start Controller (Data diolah di sini)
+            DataTablesGridController.init({
+                table: table,
+                columns: columns,
+                elementId: '${elementId!}',
+                elementParamName: '${elementParamName!}',
+                formGridId: '${formGridId!}',
+                fieldMeta: FIELD_META,
+                formDefId: '${formDefId!}',
+                baseUrl: '${request.contextPath}',
+                calculationUrl: '${calculationUrl}',
+                appId: '${appId!}',
+                appVersion: '${appVersion!}'
+            }, rawDataRows);
+        });
+    </script>
 </div>

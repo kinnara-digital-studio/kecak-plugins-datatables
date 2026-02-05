@@ -28,7 +28,6 @@
             const isInlineGrid = this.menuType === this.MENU_TYPE.INLINE_GRID;
             const tableEl = opts.tableElement || '#inlineTable';
 
-            // Base Configuration
             const dtOpts = {
                 processing: true,
                 serverSide: false,
@@ -38,7 +37,6 @@
                 lengthChange: false
             };
 
-            // config based on Menu Type
             if (isInlineGrid) {
                 this._applyInlineGridConfig(dtOpts, opts);
             } else {
@@ -51,6 +49,8 @@
 
             if (!isInlineGrid) {
                 this._initStandardFeatures(table, opts);
+            } else {
+                this._initInlineGridListeners(table, opts);
             }
 
             return table;
@@ -69,6 +69,13 @@
         },
 
         _applyInlineGridConfig: function(dtOpts, opts) {
+            if (opts.data && opts.fieldMeta) {
+                opts.data = opts.data.map(row => {
+                    row.activeSectionId = this.processVisibility(row, opts.fieldMeta);
+                    return row;
+                });
+            }
+
             dtOpts.data = opts.data || [];
             dtOpts.ordering = false;
             dtOpts.info = false;
@@ -86,6 +93,28 @@
             this.toggleDtInfoPaging(table);
             table.on('draw', () => this.toggleDtInfoPaging(table));
             this.initCustomToolbar(opts);
+        },
+
+        _initInlineGridListeners: function(table, opts) {
+            const controlFields = this.getControlFields(opts.fieldMeta);
+            const $wrapper = $(table.table().container());
+
+            $wrapper.on('change', '.dt-input', (e) => {
+                const $input = $(e.target);
+                const fieldName = $input.attr('name');
+                const $tr = $input.closest('tr');
+                const row = table.row($tr);
+                const rowData = row.data();
+
+                rowData[fieldName] = $input.val();
+
+                if (controlFields.includes(fieldName)) {
+                    const newSectionId = this.processVisibility(rowData, opts.fieldMeta);
+                    rowData.activeSectionId = newSectionId;
+
+                    row.data(rowData).draw(false);
+                }
+            });
         },
 
         initCustomToolbar: function (opts) {
@@ -116,7 +145,14 @@
 
             const ajaxConfig = {
                 url: opts.baseUrl + opts.dataUrl,
-                dataSrc: (json) => (json && Array.isArray(json.data) ? json.data : [])
+                dataSrc: (json) => {
+                    const data = (json && Array.isArray(json.data) ? json.data : []);
+                    // Initial visibility check for ajax data
+                    return data.map(row => {
+                        row.activeSectionId = this.processVisibility(row, opts.fieldMeta);
+                        return row;
+                    });
+                }
             };
 
             if (this.menuType === this.MENU_TYPE.INBOX) {
@@ -138,7 +174,6 @@
                 this.buildDataColumn(col, this.menuType, opts.fieldMeta)
             );
 
-            // Add Action Columns
             if (this.menuType !== this.MENU_TYPE.INBOX) {
                 cols.push(this.buildDeleteColumn());
             } else {
@@ -149,40 +184,70 @@
         },
 
         buildDataColumn: function (col, menuType, fieldMeta) {
+            const self = this;
             return {
                 data: col.name || null,
                 name: col.name || '',
                 defaultContent: '',
                 render: (data, type, row) => {
+                debugger;
                     if (data === undefined || data === null) return '';
 
-                    if (type === 'display') {
-                        const meta = fieldMeta?.[col.name] || {};
+                    if (!row.activeSectionId && fieldMeta) {
+                        row.activeSectionId = self.processVisibility(row, fieldMeta);
 
-                        if (meta.type === 'select') {
-                            const opt = (meta.options || []).find(o => String(o.value) === String(data));
-                            return opt ? opt.label : data;
-                        }
+                        if (!row.activeSectionId) {
 
-                        if (meta.formatter) {
-                            return this.formatNumber(data, meta);
-                        }
-
-                        // FILE UPLOAD (READONLY)
-                        if (meta.type === 'file') {
-                            return this.renderFileValue(data);
                         }
                     }
-                    return data;
+                    const activeSection = row.activeSectionId;
+                    let compositeKey = '';
+                    if(!activeSection){
+                        const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                        if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                    }else{
+                        compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                    }
+
+                    const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+
+                   if (meta.type === 'select') {
+                       const opt = (meta.options || []).find(o => String(o.value) === String(data));
+                       return opt ? opt.label : data;
+                   }
+
+                   if (meta.formatter) {
+                       return this.formatNumber(data, meta);
+                   }
+
+                   if (meta.type === 'file') {
+                       return this.renderFileValue(data);
+                   }
+                   return data;
                 },
                 createdCell: (td, cellData, rowData) => {
-                    const meta = fieldMeta?.[col.name] || {};
+                    const activeSection = rowData.activeSectionId;
+                    let compositeKey = '';
+                    if(!activeSection){
+                        const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                        if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                    }else{
+                        compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                    }
+                    const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+
                     $(td).attr({
                         'data-id': rowData.id,
                         'data-field': col.name,
+                        'data-section': activeSection || '',
+                        'data-composite-key': compositeKey,
                         'data-value': cellData ?? '',
                         'data-type': meta.type || 'text'
                     }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
+                    
+                    if (meta.isHidden) {
+                        $(td).hide();
+                    }
                 }
             };
         },
@@ -238,8 +303,8 @@
 
             if (hasComma && hasDot) {
                 str = str.lastIndexOf(',') > str.lastIndexOf('.')
-                    ? str.replace(/\./g, '').replace(',', '.') // EU
-                    : str.replace(/,/g, ''); // US
+                    ? str.replace(/\./g, '').replace(',', '.') 
+                    : str.replace(/,/g, ''); 
             } else if (hasComma) {
                 str = str.replace(',', '.');
             }
@@ -281,44 +346,67 @@
 
         renderFileValue: function (value) {
             if (!value) return '';
-
             const files = String(value).split(';');
-
             return files.map(rawUrl => {
                 if (!rawUrl) return '';
-
                 const url   = rawUrl.replace(/\.+$/, '');
                 const lower = url.toLowerCase();
                 const name  = url.split('/').pop();
 
-                if (
-                    lower.endsWith('.png') ||
-                    lower.endsWith('.jpg') ||
-                    lower.endsWith('.jpeg')
-                ) {
-                    return `
-                <img
-                    src="${rawUrl}"
-                    alt="${name}"
-                    style="
-                        max-width:120px;
-                        max-height:120px;
-                        display:block;
-                        margin-bottom:4px;
-                        border-radius:4px;
-                    "
-                />
-            `;
+                if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
+                    return `<img src="${rawUrl}" alt="${name}" style="max-width:120px;max-height:120px;display:block;margin-bottom:4px;border-radius:4px;"/>`;
                 }
-
-                // OTHER FILE
-                return `
-            <a href="${url}" download target="_blank">
-                📎 ${name}
-            </a>
-        `;
+                return `<a href="${url}" download target="_blank">📎 ${name}</a>`;
             }).join('<br>');
         },
 
+        /* ================= VISIBILITY & SECTION HANDLERS ================= */
+        processVisibility: function(rowData, fieldMeta) {
+            if (!fieldMeta) return null;
+            const sections = Object.values(fieldMeta).filter(m => m.type === 'section');
+            let activeSectionId = null;
+
+            sections.forEach(section => {
+                if (!section.visibilityControl || !section.visibilityValue) return;
+
+                const controls = section.visibilityControl.split(';');
+                const values = section.visibilityValue.split(';');
+                const joins = (section.join || "").split(';'); 
+
+                let isVisible = false;
+
+                for (let i = 0; i < controls.length; i++) {
+                    const ctrlField = controls[i];
+                    const targetVal = values[i];
+                    const currentVal = rowData[ctrlField];
+                    
+                    const match = String(currentVal) === String(targetVal);
+
+                    if (i === 0) {
+                        isVisible = match;
+                    } else {
+                        const operator = (joins[i] || 'and').trim().toLowerCase();
+                        isVisible = (operator === 'or') ? (isVisible || match) : (isVisible && match);
+                    }
+                }
+
+                if (isVisible) activeSectionId = section.id;
+            });
+
+            return activeSectionId;
+        },
+
+        getControlFields: function(fieldMeta) {
+            if (!fieldMeta) return [];
+            const controls = new Set();
+            Object.values(fieldMeta).forEach(meta => {
+                if (meta.type === 'section' && meta.visibilityControl) {
+                    meta.visibilityControl.split(';').forEach(f => {
+                        if(f) controls.add(f.trim());
+                    });
+                }
+            });
+            return Array.from(controls);
+        }
     };
 })();
