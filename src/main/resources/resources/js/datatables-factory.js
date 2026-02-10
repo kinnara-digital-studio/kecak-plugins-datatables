@@ -190,63 +190,75 @@
                 name: col.name || '',
                 defaultContent: '',
                 render: (data, type, row) => {
-                debugger;
                     if (data === undefined || data === null) return '';
 
-                    if (!row.activeSectionId && fieldMeta) {
-                        row.activeSectionId = self.processVisibility(row, fieldMeta);
+                    if (type === 'display') {
+                        let meta = {};
+                        if(menuType === this.MENU_TYPE.INLINE_GRID){
+                            if (!row.activeSectionId && fieldMeta) {
+                                row.activeSectionId = self.processVisibility(row, fieldMeta);
+                            }
+                            const activeSection = row.activeSectionId;
+                            let compositeKey = '';
+                            if(!activeSection){
+                                const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                                if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                            }else{
+                                compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                            }
+                            meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+                        }else{
+                            meta = fieldMeta?.[col.name] || {};
+                        }
 
-                        if (!row.activeSectionId) {
+                        if (meta.type === 'select') {
+                            const opt = (meta.options || []).find(o => String(o.value) === String(data));
+                            return opt ? opt.label : data;
+                        }
 
+                        if (meta.formatter) {
+                            return this.formatNumber(data, meta);
+                        }
+
+                        // FILE UPLOAD (READONLY)
+                        if (meta.type === 'file') {
+                            return this.renderFileValue(data);
                         }
                     }
-                    const activeSection = row.activeSectionId;
-                    let compositeKey = '';
-                    if(!activeSection){
-                        const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                        if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
-                    }else{
-                        compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
-                    }
-
-                    const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
-
-                   if (meta.type === 'select') {
-                       const opt = (meta.options || []).find(o => String(o.value) === String(data));
-                       return opt ? opt.label : data;
-                   }
-
-                   if (meta.formatter) {
-                       return this.formatNumber(data, meta);
-                   }
-
-                   if (meta.type === 'file') {
-                       return this.renderFileValue(data);
-                   }
-                   return data;
+                    return data;
                 },
                 createdCell: (td, cellData, rowData) => {
-                    const activeSection = rowData.activeSectionId;
-                    let compositeKey = '';
-                    if(!activeSection){
-                        const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                        if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
-                    }else{
-                        compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
-                    }
-                    const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+                    if(menuType === this.MENU_TYPE.INLINE_GRID){
+                        const activeSection = rowData.activeSectionId;
+                        let compositeKey = '';
+                        if(!activeSection){
+                            const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                            if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                        }else{
+                            compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                        }
+                        const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
 
-                    $(td).attr({
-                        'data-id': rowData.id,
-                        'data-field': col.name,
-                        'data-section': activeSection || '',
-                        'data-composite-key': compositeKey,
-                        'data-value': cellData ?? '',
-                        'data-type': meta.type || 'text'
-                    }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
-                    
-                    if (meta.isHidden) {
-                        $(td).hide();
+                        $(td).attr({
+                            'data-id': rowData.id,
+                            'data-field': col.name,
+                            'data-section': activeSection || '',
+                            'data-composite-key': compositeKey,
+                            'data-value': cellData ?? '',
+                            'data-type': meta.type || 'text'
+                        }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
+
+                        if (meta.isHidden) {
+                            $(td).hide();
+                        }
+                    }else{
+                        const meta = fieldMeta?.[col.name] || {};
+                        $(td).attr({
+                            'data-id': rowData.id,
+                            'data-field': col.name,
+                            'data-value': cellData ?? '',
+                            'data-type': meta.type || 'text'
+                        }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
                     }
                 }
             };

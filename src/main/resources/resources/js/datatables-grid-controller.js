@@ -42,12 +42,11 @@
 
             this.FIELD_MAP = opts.fieldMap || this._buildFieldMap(opts.columns);
 
-            // Identifikasi field pengontrol visibilitas secara dinamis
             this.controlFields = DataTablesFactory.getControlFields(this.FIELD_META);
 
             this._initFieldCalcMap();
             this.bindEvents();
-            // this.bindEmptyState();
+            this.bindEmptyState();
 
             if (dataRows && dataRows.length > 0) {
                 this.loadExistingData(dataRows);
@@ -79,6 +78,22 @@
             this.table.rows.add(processedData).draw(false);
             this.reindexRows();
             this.updateRowCount();
+        },
+
+        triggerInitialCalculations: function () {
+            const self = this;
+            if (!this.table) return;
+
+            this.table.rows().every(function (rowIdx) {
+                const rowData = this.data();
+                const rowIndex = rowIdx;
+
+                self.FIELD_MAP.forEach(field => {
+                    if (field && self.fieldCalculateMap[field]) {
+                        self.triggerCalculate(field, rowIndex, rowData);
+                    }
+                });
+            });
         },
 
         _buildFieldMap: function (columns) {
@@ -137,13 +152,17 @@
         },
 
         _appendJsonRowMarkup: function (row, rowIndex, existingData) {
-            const json = existingData || {};
-            Object.keys(this.FIELD_META).forEach(k => { if (!(k in json)) json[k] = ''; });
+            const jsonToStore = {};
+            this.FIELD_MAP.forEach(fieldId => {
+                if (fieldId) {
+                    jsonToStore[fieldId] = existingData[fieldId] ?? '';
+                }
+            });
 
             $(row).append(`
                 <td style="display:none;">
                     <textarea name="${this.elementParamName}_jsonrow_${rowIndex}">
-                        ${JSON.stringify(json)}
+                        ${JSON.stringify(jsonToStore)}
                     </textarea>
                 </td>
             `);
@@ -260,20 +279,23 @@
 
             if (targets) {
                 targets.forEach(targetKey => {
-                    const isTargetInActiveSection = activeSection && targetKey.startsWith(activeSection + "_");
-                    const isGlobalOrOtherSection = !isTargetInActiveSection; 
+                    const fieldId = this._getCleanFieldId(targetKey);
 
-                    if (isTargetInActiveSection || isGlobalOrOtherSection) {
-                        this.handleCalculation(targetKey, rowIndex, rowData);
+                    if (!this.FIELD_MAP.includes(fieldId)) {
+                        rowData[fieldId] = 0;
+                        return;
                     }
+                    this.handleCalculation(targetKey, rowIndex, rowData);
                 });
             }
         },
 
         handleCalculation: function (compositeKey, rowIndex, rowData) {
-            const fieldId = compositeKey.includes("_") ? compositeKey.split('_').pop() : compositeKey;
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
+            const fieldId = this._getCleanFieldId(compositeKey);
 
+            if (!this.FIELD_MAP.includes(fieldId)) return;
+
+            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
             if (!meta || !meta.calculationLoadBinder) return;
 
             const calc = meta.calculationLoadBinder;
@@ -448,15 +470,26 @@
 
         /* ================= HELPERS ================= */
         syncJsonRow: function (rowIndex, field, value) {
+            if (!this.FIELD_MAP.includes(field)) return;
+
             const rowNode = this.table.row(rowIndex).node();
             const $ta = $(rowNode).find(`textarea[name*="_jsonrow_"]`);
             if (!$ta.length) return;
+
             try {
                 const json = JSON.parse($ta.val());
+
                 json[field] = value;
+
+                Object.keys(json).forEach(k => {
+                    if (k.includes("_") && k !== field && !this.FIELD_MAP.includes(k)) {
+                        delete json[k];
+                    }
+                });
+
                 $ta.val(JSON.stringify(json));
                 $ta.trigger('change');
-            } catch (e) { console.error('Sync JSON failed', e); }
+            } catch (e) { console.error('failed sync JSON', e); }
         },
 
         applyValueToCell: function ($cell, value, meta) {
@@ -573,5 +606,21 @@
             self.table.on('draw.dt', () => evaluateEmpty());
             setTimeout(() => evaluateEmpty(), 0);
         },
+
+        _getCleanFieldId: function(targetKey) {
+            if (!targetKey.includes("_")) return targetKey;
+
+            const sections = Object.values(this.FIELD_META)
+                .filter(m => m.type === 'section')
+                .map(m => m.id);
+
+            for (const sectionId of sections) {
+                if (targetKey.startsWith(sectionId + "_")) {
+                    return targetKey.substring(sectionId.length + 1);
+                }
+            }
+
+            return targetKey.split('_').slice(1).join('_');
+        }
     };
 })();

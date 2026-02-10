@@ -1,8 +1,8 @@
 /**
  * DataTables Controller
- * @author: tiyojati (Final Refactored)
+ * @author: tiyojati (Refactored)
  */
-(function () {
+(function() {
     if (window.DataTablesMenuController) return;
 
     window.DataTablesMenuController = {
@@ -27,13 +27,12 @@
         calculatedRowData: null,
         isSaving: false,
         fieldCalculateMap: null,
-        controlFields: [],
 
         appId: null,
         appVersion: null,
 
         /* ================= INIT ================= */
-        init: function (opts) {
+        init: function(opts) {
             Object.assign(this, {
                 table: opts.table,
                 FIELD_META: opts.fieldMeta,
@@ -48,9 +47,8 @@
                 editFormDefId: opts.editFormDefId,
                 jsonForm: opts.jsonForm,
                 nonce: opts.nonce,
-                appId:  opts.appId,
-                appVersion: opts.appVersion,
-                controlFields: window.DataTablesFactory ? DataTablesFactory.getControlFields(this.FIELD_META) : []
+                appId: opts.appId,
+                appVersion: opts.appVersion
             });
 
             this.fieldCalcMap();
@@ -58,19 +56,8 @@
             this.bindEmptyState();
         },
 
-        /* ================= LOOKUP STRATEGY ================= */
-        getMetaForField: function (field, rowData) {
-            if (!this.FIELD_META) return null;
-            const activeSection = rowData?.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}_${field}` : field;
-
-            return this.FIELD_META[compositeKey] ||
-                   this.FIELD_META[field] ||
-                   Object.values(this.FIELD_META).find(m => m && (m.fieldId === field && m.type !== 'section'));
-        },
-
         /* ================= EMPTY STATE ================= */
-        toggleEmptyState: function (options) {
+        toggleEmptyState: function(options) {
             const opts = $.extend({
                 show: false,
                 title: 'No Data Found',
@@ -103,23 +90,31 @@
             }
         },
 
-        bindEmptyState: function () {
+        bindEmptyState: function() {
             if (!this.table) return;
 
             this.table.on('xhr.dt', (e, settings, json) => {
                 const data = json && Array.isArray(json.data) ? json.data : [];
-                this.toggleEmptyState({ show: data.length === 0 });
+                this.toggleEmptyState({
+                    show: data.length === 0
+                });
             });
 
             this.table.on('draw.dt', () => {
-                const count = this.table.rows({ filter: 'applied' }).data().length;
-                this.toggleEmptyState({ show: count === 0 });
+                const count = this.table.rows({
+                    filter: 'applied'
+                }).data().length;
+                this.toggleEmptyState({
+                    show: count === 0
+                });
             });
         },
 
         /* ================= EVENTS ================= */
-        bindEvents: function () {
+        bindEvents: function() {
+            const $body = $('body');
             const $table = $('#inlineTable');
+            const self = this;
 
             // Cell interaction
             $table.find('tbody')
@@ -129,23 +124,35 @@
                     this.onDelete($(e.currentTarget).closest('tr'));
                 });
 
-            $(document).off('keydown', '.cell-editor').on('keydown', '.cell-editor', (e) => {
+            // Editor controls
+            $(document).on('keydown', '.cell-editor', (e) => {
                 const keys = {
-                    Enter: () => { e.preventDefault(); this.save(); },
-                    Tab: () => { e.preventDefault(); this.save(); },
-                    Escape: () => { e.preventDefault(); this.cancel(); }
+                    Enter: () => {
+                        e.preventDefault();
+                        this.save();
+                    },
+                    Tab: () => {
+                        e.preventDefault();
+                        this.save();
+                    },
+                    Escape: () => {
+                        e.preventDefault();
+                        this.cancel();
+                    }
                 };
                 if (keys[e.key]) keys[e.key]();
             });
 
-            $(document).off('mousedown.dtMenu').on('mousedown.dtMenu', (e) => {
+            // Click outside to cancel
+            $(document).on('mousedown', (e) => {
                 if (!this.editingCell || this.isSaving) return;
                 if (!$(e.target).closest('.cell-editor, td').length) this.cancel();
             });
 
-            $(document).off('click', '#btnAddRow').on('click', '#btnAddRow', () => this.openAddForm());
+            $(document).on('click', '#btnAddRow', () => this.openAddForm());
 
-            $table.on('change', '.dt-action-select', function() {
+            // Workflow actions
+            $table.on('change', '.dt-action-select', function(e) {
                 $(this).toggleClass('selected', !!this.value);
             });
 
@@ -154,11 +161,11 @@
                 this.submitTask($wrapper.data('activity-id'), $wrapper.find('.dt-action-select').val());
             });
 
+            // Autofill select handler
             $(document).on('change', '.cell-editor', (e) => {
                 const $editor = $(e.currentTarget);
                 const $cell = $editor.closest('td');
-                const rowData = this.table.row($cell.closest('tr')).data();
-                const meta = this.getMetaForField($cell.data('field'), rowData);
+                const meta = $cell.data('meta');
 
                 if (meta?.autofillLoadBinder && meta.type === 'select') {
                     this.handleAutofill($cell, $editor.val(), meta);
@@ -167,23 +174,16 @@
         },
 
         /* ================= INLINE EDIT ================= */
-        onCellClick: function ($cell) {
-            // Cegah edit jika sedang proses simpan atau sel yang sama diklik
-            if (!this.editable || this.isSaving) return;
-            if (this.editingCell && this.editingCell.is($cell)) return;
+        onCellClick: function($cell) {
+            if (!this.editable || this.editingCell || this.isSaving) return;
 
             const field = $cell.data('field');
+            const meta = this.FIELD_META[field];
+
+            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
+
             const row = this.table.row($cell.closest('tr'));
-            const rowData = row.data();
-            const meta = this.getMetaForField(field, rowData);
-
-            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) {
-                return;
-            }
-
-            if (this.editingCell) this.cancel();
-
-            this.originalRowData = $.extend(true, {}, rowData);
+            this.originalRowData = $.extend(true, {}, row.data());
             this.editingCell = $cell;
 
             $cell.addClass('editing')
@@ -194,44 +194,55 @@
                 .focus();
         },
 
-        save: function () {
+        save: function() {
+            const self = this;
             if (!this.editingCell || this.isSaving) return;
-            const newValue = this.editingCell.find('.cell-editor').val();
-            this.liveCalculate();
 
-            setTimeout(() => {
-                if (newValue === this.editingCell.attr('data-value')) {
-                    this.resetState();
-                    return;
-                }
-                this.doSave(newValue);
-            }, 100);
+            const newValue = this.editingCell.find('.cell-editor').val();
+
+            this.isSaving = true;
+            this.showLoadingState(true);
+
+            this.liveCalculate()
+                .then(function() {
+                    if (newValue === self.editingCell.attr('data-value')) {
+                        self.resetState();
+                        showToast('No changes detected', 'info');
+                        return;
+                    }
+
+                    self.doSave(newValue);
+                })
+                .catch(function(err) {
+                    console.error("Gagal saat kalkulasi:", err);
+                    showToast('Error calculation', 'error');
+                    self.resetState();
+                });
         },
 
-        doSave: function (newValue) {
-            debugger;
+        doSave: function(newValue) {
             this.isSaving = true;
+            const self = this;
             const $cell = this.editingCell;
             const field = $cell.data('field');
             const id = $cell.data('id');
             const meta = $cell.data('meta');
-            const row = this.table.row($cell.closest('tr'));
-            const rowData = $.extend({}, (this.calculatedRowData || row.data()));
+            const formId = meta.isSubForm ? meta.formDefId : this.editFormDefId;
 
+            const $row = this.table.row($cell.closest('tr'));
+            const rowData = self.calculatedRowData ?
+                $.extend({}, self.calculatedRowData) :
+                $.extend({}, row.data());
             let saveValue = (meta.type === 'date') ? DataTablesFactory.ensureDateString(newValue) : newValue;
             rowData[field] = saveValue;
 
-            if (this.controlFields.includes(field)) {
-                rowData.activeSectionId = DataTablesFactory.processVisibility(rowData, this.FIELD_META);
-            }
-
-            const formId = meta.isSubForm ? meta.formDefId : this.editFormDefId;
-            let body = { id: id };
+            const body = {
+                id: id
+            };
             Object.keys(this.FIELD_META).forEach(f => {
-                const m = this.FIELD_META[f];
-                const fieldId = m.fieldId;
-                if (m && m.type !== 'section') {
-                    body[fieldId] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[fieldId]) : rowData[fieldId];
+                if (rowData[f] != null) {
+                    const m = this.FIELD_META[f] || {};
+                    body[f] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[f]) : rowData[f];
                 }
             });
 
@@ -241,25 +252,31 @@
                 contentType: 'application/json',
                 data: JSON.stringify(body),
                 success: () => {
-                    row.data(rowData).invalidate();
+                    Object.keys(body).forEach(([field, value]) => {
+                        const fm = self.FIELD_META[field];
+                        const commitValue = (fm && fm.type === 'date') ? newValue : value;
+                        this.commitRowChange(field, commitValue);
+                    });
+                    this.calculatedRowData = null;
                     this.applyValue($cell, newValue, meta);
                     $cell.addClass('saved');
                     showToast('Changes saved successfully', 'success');
-                    row.draw(false);
                     this.resetState();
                 },
                 error: () => {
                     this.restoreRow();
                     showToast('Failed to save changes', 'error');
                 },
-                complete: () => { this.isSaving = false; }
+                complete: () => {
+                    this.isSaving = false;
+                }
             });
         },
 
-        commitRowChange: function (field, value) {
+        commitRowChange: function(field, value) {
             const row = this.table.row(this.editingCell.closest('tr'));
             const data = row.data();
-            const meta = this.getMetaForField(field, data);
+            const meta = this.FIELD_META[field];
             let commitValue = value;
 
             if (meta) {
@@ -271,54 +288,40 @@
                     commitValue = DataTablesFactory.normalizeNumber(value, meta);
                 }
             }
+
             data[field] = commitValue;
             row.data(data).invalidate();
         },
 
-        cancel: function () {
+        cancel: function() {
             if (!this.editingCell || this.isSaving) return;
             this.restoreRow();
+            showToast('Edit cancelled', 'info');
         },
 
-        restoreRow: function () {
+        restoreRow: function() {
             const row = this.table.row(this.editingCell.closest('tr'));
             row.data(this.originalRowData);
-            row.draw(false);
+
+            Object.keys(this.FIELD_META).forEach(f => {
+                const meta = this.FIELD_META[f];
+                if (meta.isHidden) return;
+                const cell = this.findCellByField(f, row);
+                if (cell) this.applyValue(cell, this.originalRowData[f], meta);
+            });
+
             this.resetState();
         },
 
-        resetState: function () {
+        resetState: function() {
             this.editingCell = null;
             this.originalRowData = null;
-            this.calculatedRowData = null;
             this.isSaving = false;
-        },
-
-        /* ================= POPUP / ADD ================= */
-        openAddForm: function () {
-            if (!this.createFormDefId) return;
-
-            const args = { frameId: 'Frame_' + this.createFormDefId };
-            const formUrl = this.BASE_URL + this.ADD_FORM_URL + UI.userviewThemeParams();
-            const params = {
-                _json: this.jsonForm,
-                _callback: 'DataTablesMenuController.onSubmitted',
-                _setting: JSON.stringify(args).replace(/"/g, "'"),
-                _jsonrow: JSON.stringify({}),
-                _nonce: this.nonce
-            };
-
-            JPopup.show(args.frameId, formUrl, params, '', 900, 800);
-        },
-
-        onSubmitted: function (args) {
-            try { JPopup.hide(args.frameId); } catch (e) {}
-            if (this.table) this.table.ajax.reload(null, false);
-            showToast('Data added successfully', 'success');
+            this.showLoadingState(false);
         },
 
         /* ================= DELETE ================= */
-        onDelete: function (row) {
+        onDelete: function(row) {
             if (!this.editable || this.isSaving) return;
 
             const data = this.table.row(row).data();
@@ -332,26 +335,32 @@
                 () => showToast('Delete cancelled', 'info'));
         },
 
-        doDelete: function (id, row) {
+        doDelete: function(id, row) {
             this.isSaving = true;
             $.ajax({
                 url: `${this.BASE_URL}${this.EDIT_FORM_URL}${this.createFormDefId}/${id}`,
                 type: 'DELETE',
                 success: () => {
                     this.table.row(row).remove().draw(false);
-                    this.toggleEmptyState({ show: this.table.rows().data().length === 0 });
+                    this.toggleEmptyState({
+                        show: this.table.rows().data().length === 0
+                    });
                     showToast('Record deleted successfully', 'success');
                 },
                 error: () => showToast('Failed to delete record', 'error'),
-                complete: () => { this.isSaving = false; }
+                complete: () => {
+                    this.isSaving = false;
+                }
             });
         },
 
         /* ================= POPUP / ADD ================= */
-        openAddForm: function () {
+        openAddForm: function() {
             if (!this.createFormDefId) return;
 
-            const args = { frameId: 'Frame_' + this.createFormDefId };
+            const args = {
+                frameId: 'Frame_' + this.createFormDefId
+            };
             const formUrl = this.BASE_URL + this.ADD_FORM_URL + UI.userviewThemeParams();
             const params = {
                 _json: this.jsonForm,
@@ -364,14 +373,16 @@
             JPopup.show(args.frameId, formUrl, params, '', 900, 800);
         },
 
-        onSubmitted: function (args) {
-            try { JPopup.hide(args.frameId); } catch (e) {}
+        onSubmitted: function(args) {
+            try {
+                JPopup.hide(args.frameId);
+            } catch (e) {}
             if (this.table) this.table.ajax.reload(null, false);
             showToast('Data added successfully', 'success');
         },
 
         /* ================= UI HELPERS ================= */
-        applyValue: function ($cell, value, meta) {
+        applyValue: function($cell, value, meta) {
             let text = value;
             if (meta.type === 'select') {
                 const opt = (meta.options || []).find(o => o.value === value);
@@ -383,188 +394,338 @@
             $cell.attr('data-value', value).html(text).removeClass('editing');
         },
 
-        buildEditor: function (type, value, meta) {
+        buildEditor: function(type, value, meta) {
             const val = value ?? '';
             const $editor = (() => {
                 switch (type) {
-                    case 'textarea': return $('<textarea/>');
+                    case 'textarea':
+                        return $('<textarea/>');
                     case 'select':
                         const $sel = $('<select/>');
                         (meta.options || []).forEach(o => $sel.append($('<option/>').val(o.value).text(o.label)));
                         return $sel;
-                    case 'number': return $('<input type="number"/>');
-                    case 'date': return $('<input type="date"/>');
-                    default: return $('<input type="text"/>');
+                    case 'number':
+                        return $('<input type="number"/>');
+                    case 'date':
+                        return $('<input type="date"/>');
+                    default:
+                        return $('<input type="text"/>');
                 }
             })();
             return $editor.addClass('cell-editor').val(val);
         },
 
         /* ================= CALCULATION ================= */
-        fieldCalcMap: function () {
-            this.fieldCalculateMap = {};
-            Object.entries(this.FIELD_META || {}).forEach(([key, meta]) => {
+        fieldCalcMap: function() {
+            const map = {};
+            Object.entries(this.FIELD_META).forEach(([field, meta]) => {
                 const vars = meta.calculationLoadBinder?.variables;
-                if (vars && Array.isArray(vars)) {
+                if (vars) {
                     vars.forEach(v => {
-                        const varKey = v.variableName;
-                        this.fieldCalculateMap[varKey] = this.fieldCalculateMap[varKey] || [];
-                        if (!this.fieldCalculateMap[varKey].includes(key)) {
-                            this.fieldCalculateMap[varKey].push(key);
-                        }
+                        map[v.variableName] = map[v.variableName] || [];
+                        map[v.variableName].push(field);
                     });
                 }
             });
+            this.fieldCalculateMap = map;
         },
 
-        liveCalculate: function () {
-            if (!this.editingCell) return;
-            const $row = this.table.row(this.editingCell.closest('tr'));
+        liveCalculate: function() {
+            const self = this;
 
-            const rowData = $.extend({}, $row.data());
+            if (!this.editingCell) return Promise.resolve();
+
+            const $row = this.editingCell.closest('tr');
+            const row = this.table.row($row);
+
+            const rowData = $.extend(true, {}, row.data());
+
             const field = this.editingCell.data('field');
-            const activeSection = rowData.activeSectionId;
 
-            const val = this.editingCell.find('.cell-editor').val() || '0';
+            const val = this.editingCell.find('.cell-editor').val();
             rowData[field] = val;
 
-            $row.data(rowData);
+            const firstLevelFields = this.fieldCalculateMap[field] || [];
 
-            const dependents = this.fieldCalculateMap[field] || [];
-            dependents.forEach(targetKey => {
-                if (!activeSection || targetKey.startsWith(activeSection + "_") || !targetKey.includes("_")) {
-                    this.calculateField(targetKey, $row, rowData);
-                }
-            });
-        },
-
-        calculateField: function (compositeKey, row, rowData) {
-            const fieldId = compositeKey.includes("_") ? compositeKey.split('_').pop() : compositeKey;
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
-            if (!meta || !meta.calculationLoadBinder) return;
-
-            const finalizeCalculation = (newValue) => {
-                rowData[fieldId] = newValue;
-
+            if (firstLevelFields.length === 0) {
                 row.data(rowData).invalidate();
-                this.calculatedRowData = $.extend({}, rowData);
+                this.calculatedRowData = rowData;
+                return Promise.resolve();
+            }
 
-                if (!meta.isHidden) {
-                    const cell = this.findCellByField(fieldId, row);
-                    if (cell && !cell.hasClass('editing')) {
-                        this.applyValue(cell, newValue, meta);
-                    }
+            const processLevel = function(fieldsToCalc) {
+                if (!fieldsToCalc || fieldsToCalc.length === 0) {
+                    return Promise.resolve();
                 }
 
-                const dependents = this.fieldCalculateMap[fieldId] || [];
-                dependents.forEach(f => this.calculateField(f, row, rowData));
+                const promises = fieldsToCalc.map(function(targetField) {
+                    return self.calculateField(targetField, row, rowData, false);
+                });
+
+                return Promise.all(promises).then(function(results) {
+                    let nextLevelFields = [];
+                    results.forEach(function(dependents) {
+                        if (dependents && Array.isArray(dependents)) {
+                            nextLevelFields = nextLevelFields.concat(dependents);
+                        }
+                    });
+
+                    const uniqueNextFields = nextLevelFields.filter(function(item, pos) {
+                        return nextLevelFields.indexOf(item) == pos;
+                    });
+
+                    return processLevel(uniqueNextFields);
+                });
             };
 
+            return processLevel(firstLevelFields).then(function() {
+                row.data(rowData);
+                row.invalidate();
+                row.draw(false);
+                self.calculatedRowData = rowData;
+            });
+        },
+
+        calculateField: function(fieldId, row, rowData, isRecursive) {
+            if (typeof isRecursive === 'undefined') isRecursive = true;
+
+            const self = this;
+            const meta = this.FIELD_META[fieldId];
+
+            if (!meta || !meta.calculationLoadBinder) return Promise.resolve([]);
+
             const calc = meta.calculationLoadBinder;
+            let calcPromise;
+
             if (calc.useJsEquation === "true" || calc.useJsEquation === true) {
-                this.calculateFieldLocal(compositeKey, row, rowData, finalizeCalculation);
+                calcPromise = this.calculateFieldLocal(fieldId, row, rowData);
             } else {
-                this.calculateFieldRemote(compositeKey, row, rowData, finalizeCalculation);
+                calcPromise = this.calculateFieldRemote(fieldId, row, rowData);
             }
-        },
 
-        calculateFieldLocal: function (compositeKey, row, rowData, callback) {
-            const fieldId = compositeKey.includes("_") ? compositeKey.split('_').pop() : compositeKey;
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
-            const calc = meta.calculationLoadBinder;
-            let equation = calc.equation;
+            return calcPromise.then(function(newValue) {
+                rowData[fieldId] = newValue;
 
-            (calc.variables || []).forEach(v => {
-                const val = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
-                equation = equation.replace(new RegExp("\\b" + v.variableName + "\\b", "g"), val);
-            });
-
-            try {
-                let result = eval(equation);
-                if (calc.roundNumber?.isRoundNumber === "true") {
-                    result = this.applyAdvancedRounding(result, calc.roundNumber);
-                }
-                if (typeof callback === 'function') callback(result);
-            } catch (e) { console.error("Local calc error", e); }
-        },
-
-        calculateFieldRemote: function (compositeKey, row, rowData, callback) {
-            const fieldId = compositeKey.includes("_") ? compositeKey.split('_').pop() : compositeKey;
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
-            const calc = meta.calculationLoadBinder;
-
-            const params = {};
-            calc.variables.forEach(v => {
-                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
-            });
-
-            $.ajax({
-                url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    formDefId: meta.isSubForm ? meta.formDefId : this.editFormDefId,
-                    fieldId: fieldId,
-                    primaryKey: rowData.id,
-                    requestParams: params
-                }),
-                success: (res) => {
-                    if (res?.value != null && typeof callback === 'function') {
-                        callback(res.value);
+                if (!meta.isHidden) {
+                    const cell = self.findCellByField(fieldId, row);
+                    if (cell && cell.length > 0 && !cell.hasClass('editing')) {
+                        self.applyValue(cell, newValue, meta);
                     }
                 }
+
+                const children = self.fieldCalculateMap[fieldId] || [];
+
+                if (isRecursive === false) {
+                    return Promise.resolve(children);
+                } else {
+                    if (children.length > 0) {
+                        const childPromises = children.map(function(childKey) {
+                            return self.calculateField(childKey, row, rowData, true);
+                        });
+                        return Promise.all(childPromises);
+                    }
+                    return Promise.resolve([]);
+                }
             });
         },
 
-        applyAdvancedRounding: function (value, cfg) {
+        calculateFieldLocal: function(fieldId, row, rowData) {
+            const self = this;
+            return new Promise((resolve) => {
+                const meta = self.FIELD_META[fieldId];
+
+                if (!meta) {
+                    resolve(rowData[fieldId] || 0);
+                    return;
+                }
+
+                const calc = meta.calculationLoadBinder;
+                let equation = calc.equation;
+
+                (calc.variables || []).forEach(v => {
+                    const val = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
+                    equation = equation.replace(new RegExp("\\b" + v.variableName + "\\b", "g"), val);
+                });
+
+                try {
+                    let result = eval(equation);
+                    if (calc.roundNumber?.isRoundNumber === "true") {
+                        result = self.applyAdvancedRounding(result, calc.roundNumber);
+                    }
+                    resolve(result);
+                } catch (e) {
+                    console.error(`Local calc error for ${fieldId}:`, e);
+                    resolve(rowData[fieldId] || 0);
+                }
+            });
+        },
+
+        calculateFieldRemote: function(fieldId, row, rowData) {
+            const self = this;
+            return new Promise(function(resolve, reject) {
+                const meta = self.FIELD_META[fieldId];
+
+                if (!meta || !meta.calculationLoadBinder) {
+                    resolve(rowData[fieldId] || 0);
+                    return;
+                }
+
+                const calc = meta.calculationLoadBinder;
+                const params = {};
+                (calc.variables || []).forEach(function(v) {
+                    params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
+                });
+
+                $.ajax({
+                    url: self.BASE_URL + self.CALCULATION_URL + '?action=calculate',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    dataType: 'json',
+                    data: JSON.stringify({
+                        formDefId: meta.isSubForm ? meta.formDefId : self.editFormDefId,
+                        fieldId: fieldId,
+                        primaryKey: rowData.id,
+                        requestParams: params
+                    }),
+                    success: function(res) {
+                        const val = (res && res.value != null) ? res.value : 0;
+                        resolve(val);
+                    },
+                    error: function(err) {
+                        console.error("Remote calc error:", err);
+                        resolve(rowData[fieldId] || 0);
+                    }
+                });
+            });
+        },
+
+        applyAdvancedRounding: function(value, cfg) {
             const decimals = parseInt(cfg.decimalPlaces || 0);
             const factor = Math.pow(10, decimals);
+
             const tempValue = value * factor;
             let rounded;
+
             switch (cfg.roundingMode) {
-                case "round_down": rounded = Math.floor(tempValue); break;
-                case "round_up": rounded = Math.ceil(tempValue); break;
-                case "round_half_up": rounded = Math.round(tempValue); break;
-                default: rounded = tempValue; break;
+                case "round_down":
+                    rounded = Math.floor(tempValue);
+                    break;
+
+                case "round_up":
+                    rounded = Math.ceil(tempValue);
+                    break;
+
+                case "round_half_up":
+                    rounded = Math.round((tempValue + Number.EPSILON) * 100) / 100;
+                    rounded = Math.round(tempValue);
+                    break;
+
+                default:
+                    rounded = tempValue;
+                    break;
             }
+
             return rounded / factor;
         },
 
-        /* ================= UI HELPERS ================= */
-        applyValue: function ($cell, value, meta) {
-            debugger;
-            let text = value ?? '';
-            if (meta && typeof meta === 'object') {
-                if (meta.type === 'select') {
-                    const opt = (meta.options || []).find(o => String(o.value) === String(value));
-                    text = opt ? opt.label : value;
-                } else if (meta.formatter) {
-                    text = DataTablesFactory.formatNumber(value, meta);
-                }
+        showLoadingState: function(isLoading) {
+            const $table = this.table.table().node();
+            if (isLoading) {
+                $($table).css('opacity', '0.5');
+                $('body').css('cursor', 'wait');
+            } else {
+                $($table).css('opacity', '1');
+                $('body').css('cursor', 'default');
             }
-            $cell.attr('data-value', value).html(text).removeClass('editing');
         },
 
-        buildEditor: function (type, value, meta) {
-            const val = value ?? '';
-            const $editor = (() => {
-                switch (type) {
-                    case 'textarea': return $('<textarea/>');
-                    case 'select':
-                        const $sel = $('<select/>');
-                        (meta.options || []).forEach(o => $sel.append($('<option/>').val(o.value).text(o.label)));
-                        return $sel;
-                    case 'number': return $('<input type="number"/>');
-                    case 'date': return $('<input type="date"/>');
-                    default: return $('<input type="text"/>');
-                }
-            })();
-            return $editor.addClass('cell-editor').val(val);
+        /* ================= WORKFLOW ================= */
+        submitTask: function(activityId, actionValue) {
+            if (!activityId || !actionValue) {
+                alert(activityId ? 'Please select an action first' : 'Activity ID not found');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('status', actionValue);
+
+            $.ajax({
+                url: `${this.BASE_URL}${this.SUBMIT_TASK_URL}${activityId}?loginAs=${this.userId}`,
+                type: 'POST',
+                data: formData,
+                processData: false,
+                contentType: false,
+                success: (res) => {
+                    if (res?.message === 'Success') {
+                        showToast('Submit data successfully', 'success');
+                        this.table?.ajax.reload(null, false);
+                    } else {
+                        showToast('Failed to submit action', 'error');
+                    }
+                },
+                error: () => showToast('Failed to submit data', 'error')
+            });
         },
 
-        findCellByField: function (field, row) {
+        findCellByField: function(field, row) {
             const node = row?.node();
-            return node ? $(node).find(`td[data-field="${field}"]`) : null;
+            if (!node) return null;
+            const $cell = $(node).find(`td[data-field="${field}"]`);
+            return $cell.length ? $cell : null;
+        },
+
+        handleAutofill: function($cell, selectedValue, meta) {
+            const autofill = meta.autofillLoadBinder;
+            if (!autofill) return;
+
+            const serviceUrl = autofill.serviceUrl;
+            if (!serviceUrl) return;
+
+            const $row = this.table.row($cell.closest('tr'));
+            const rowData = $.extend({}, $row.data());
+
+            const payload = {
+                appId: this.jsonForm?.properties?.appId,
+                appVersion: this.jsonForm?.properties?.appVersion,
+                id: selectedValue,
+                FIELD_ID: $cell.data('field'),
+                FORM_ID: meta.isSubForm ? meta.formDefId : this.editFormDefId,
+                SECTION_ID: meta.sectionId,
+                requestParameter: {}
+            };
+
+            $.ajax({
+                url: serviceUrl,
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify(payload),
+                success: (res) => {
+                    if (!res || typeof res !== 'object') return;
+
+                    (autofill.fields || []).forEach(map => {
+                        const targetField = map.formField;
+                        const sourceKey = map.resultField;
+
+                        if (!(sourceKey in res)) return;
+
+                        const value = res[sourceKey];
+                        const targetMeta = this.FIELD_META[targetField];
+                        if (!targetMeta) return;
+
+                        rowData[targetField] = value;
+
+                        const cell = this.findCellByField(targetField, $row);
+                        if (cell && !cell.hasClass('editing')) {
+                            this.applyValue(cell, value, targetMeta);
+                        }
+                    });
+
+                    $row.data(rowData).invalidate();
+                },
+                error: (err) => {
+                    console.error('Autofill failed', err);
+                }
+            });
         }
     };
 })();
