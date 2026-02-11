@@ -148,6 +148,44 @@
                 }
                 if (e.key === 'Escape') self.cancelEdit($td);
             });
+            $(document).on('change', '.cell-editor', function () {
+                const $editor = $(this);
+                const $td = $editor.closest('td');
+
+                const cell = self.table.cell($td);
+                if (!cell || !cell.index()) return;
+
+                const idx = cell.index();
+                const field = self.FIELD_MAP[idx.column];
+
+                if (self.controlFields.includes(field)) {
+                    debugger;
+                    const newValue = $editor.val();
+                    const rowData = self.table.row(idx.row).data();
+
+                    const tempRowData = $.extend({}, rowData);
+
+                    const activeSection = rowData.activeSectionId;
+                    const compositeKey = activeSection ? `${activeSection}.${field}` : field;
+                    const meta = self.FIELD_META[compositeKey] || self.FIELD_META[field] || {};
+
+                    let rawValue = newValue;
+                    if (meta.formatter || meta.type === 'number') {
+                        rawValue = DataTablesFactory.normalizeNumber(newValue);
+                    }
+
+                    tempRowData[field] = rawValue;
+
+                    const currentSection = rowData.activeSectionId;
+                    const newSectionId = DataTablesFactory.processVisibility(tempRowData, self.FIELD_META);
+
+                    if (newSectionId !== currentSection) {
+                        self.commit($td, field, idx.row, newValue);
+
+                        self.editingCell = null;
+                    }
+                }
+            });
         },
 
         /* ================= ROW OPERATIONS ================= */
@@ -258,6 +296,7 @@
         commit: function ($td, field, rowIndex, inputValue) {
             const rowData = this.table.row(rowIndex).data();
             const currentSection = rowData.activeSectionId;
+
             const compositeKey = currentSection ? `${currentSection}.${field}` : field;
             const meta = this.FIELD_META[compositeKey] || this.FIELD_META[field] || {};
             
@@ -268,14 +307,31 @@
                 const newSectionId = DataTablesFactory.processVisibility(rowData, this.FIELD_META);
                 if (newSectionId !== currentSection) {
                     rowData.activeSectionId = newSectionId;
-                    this.table.row(rowIndex).data(rowData).draw(false);
-                } else {
-                    this.applyValueToCell($td, rawValue, meta);
+                    this.table.row(rowIndex).data(rowData);
+                    this.table.row(rowIndex).invalidate().draw(false);
+
+                    const $row = $(this.table.row(rowIndex).node());
+                    const self = this;
+
+                    $row.find('td[data-field]').each(function() {
+                        const $cell = $(this);
+                        const cellField = $cell.attr('data-field');
+
+                        $cell.attr('data-section', newSectionId);
+
+                        const newCompositeKey = `${newSectionId}.${cellField}`;
+                        $cell.attr('data-composite-key', newCompositeKey);
+                    });
+
+                    this.syncJsonRow(rowIndex, field, rawValue);
+                    this.triggerAutofill(field, rowIndex, rawValue, rowData);
+                    this.triggerCalculate(field, rowIndex, rowData);
+
+                    return;
                 }
-            } else {
-                this.applyValueToCell($td, rawValue, meta);
             }
 
+            this.applyValueToCell($td, rawValue, meta);
             this.syncJsonRow(rowIndex, field, rawValue);
             this.triggerAutofill(field, rowIndex, rawValue, rowData);
             this.triggerCalculate(field, rowIndex, rowData);
