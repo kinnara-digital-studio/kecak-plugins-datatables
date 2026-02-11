@@ -12,6 +12,7 @@
         tableEl: null,
         FIELD_META: {},
         FIELD_MAP: [],
+        FIELD_DATA: {},
         elementParamName: null,
         formGridId: null,
         BASE_URL: null,
@@ -44,6 +45,7 @@
 
             this.controlFields = DataTablesFactory.getControlFields(this.FIELD_META);
 
+            this._buildFieldData();
             this._initFieldCalcMap();
             this.bindEvents();
             this.bindEmptyState();
@@ -100,6 +102,17 @@
             return (columns || []).map(col => (col && col.name ? col.name : null));
         },
 
+        _buildFieldData: function () {
+            this.FIELD_DATA = {};
+            Object.keys(this.FIELD_META).forEach(key => {
+                const meta = this.FIELD_META[key];
+                if(meta.type !== 'section'){
+                    const fieldId = this._getCleanFieldId(key);
+                    this.FIELD_DATA[fieldId] = '';
+                }
+            });
+        },
+
         /* ================= LOOKUP STRATEGY ================= */
         getMetaForField: function (field, rowData) {
             if (!this.FIELD_META) return null;
@@ -142,9 +155,24 @@
             const emptyData = {
                 activeSectionId: null
             };
-            this.FIELD_MAP.forEach(f => { if (f) emptyData[f] = ''; });
-            
-            emptyData.activeSectionId = DataTablesFactory.processVisibility(emptyData, this.FIELD_META);
+
+            Object.keys(this.FIELD_DATA).forEach(field => {
+                 emptyData[field] = '';
+            });
+
+            const rowCount = this.table.rows().count();
+
+            if (rowCount > 0) {
+                const lastRowData = this.table.row(rowCount - 1).data();
+
+                if (lastRowData && lastRowData.activeSectionId) {
+                    emptyData.activeSectionId = lastRowData.activeSectionId;
+                } else {
+                    emptyData.activeSectionId = DataTablesFactory.processVisibility(emptyData, this.FIELD_META);
+                }
+            } else {
+                emptyData.activeSectionId = DataTablesFactory.processVisibility(emptyData, this.FIELD_META);
+            }
             
             this.table.row.add(emptyData).draw(false);
             this.reindexRows();
@@ -153,10 +181,8 @@
 
         _appendJsonRowMarkup: function (row, rowIndex, existingData) {
             const jsonToStore = {};
-            this.FIELD_MAP.forEach(fieldId => {
-                if (fieldId) {
-                    jsonToStore[fieldId] = existingData[fieldId] ?? '';
-                }
+            Object.keys(this.FIELD_DATA).forEach(field => {
+                jsonToStore[field] = existingData[field] ?? '';
             });
 
             $(row).append(`
@@ -276,7 +302,6 @@
         triggerCalculate: function (field, rowIndex, rowData) {
             const targets = this.fieldCalculateMap[field];
             const activeSection = rowData.activeSectionId;
-
             if (targets && Array.isArray(targets) && targets.length > 0) {
                 let targetsToProcess = [];
 
@@ -293,8 +318,8 @@
                 targetsToProcess.forEach(targetKey => {
                     const fieldId = this._getCleanFieldId(targetKey);
 
-                    if (this.FIELD_MAP && !this.FIELD_MAP.includes(fieldId)) {
-                        // rowData[fieldId] = 0;
+                    if(this.FIELD_DATA && !Object.hasOwn(this.FIELD_DATA, fieldId)) {
+                        rowData[fieldId] = 0;
                         return;
                     }
 
@@ -304,11 +329,7 @@
         },
 
         handleCalculation: function (compositeKey, rowIndex, rowData) {
-            const fieldId = this._getCleanFieldId(compositeKey);
-
-            if (!this.FIELD_MAP.includes(fieldId)) return;
-
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[fieldId];
+            const meta = this.FIELD_META[compositeKey]
             if (!meta || !meta.calculationLoadBinder) return;
 
             const calc = meta.calculationLoadBinder;
@@ -321,7 +342,7 @@
 
         calculateFieldLocal: function (compositeKey, rowIndex, rowData) {
             const self = this;
-            const meta = this.FIELD_META[compositeKey];
+            const meta = this.getMetaForField(compositeKey, rowData);
             const calc = meta.calculationLoadBinder;
             let equation = calc.equation;
             const variables = calc.variables || [];
@@ -336,6 +357,10 @@
 
             try {
                 let result = eval(equation);
+
+                if (!isFinite(result) || isNaN(result)) {
+                    result = 0;
+                }
 
                 const roundCfg = calc.roundNumber;
                 if (roundCfg && (roundCfg.isRoundNumber === "true" || roundCfg.isRoundNumber === true)) {
@@ -390,7 +415,7 @@
 
         calculateFieldRemote: function (compositeKey, rowIndex, rowData) {
             const self = this;
-            const meta = this.FIELD_META[compositeKey];
+            const meta = this.getMetaForField(compositeKey, rowData);
             const calc = meta?.calculationLoadBinder;
             if (!calc) return;
 
@@ -433,8 +458,7 @@
         triggerAutofill: function (field, rowIndex, value, rowData) {
             const activeSection = rowData.activeSectionId;
             const compositeKey = activeSection ? `${activeSection}.${field}` : field;
-            const meta = this.FIELD_META[compositeKey] || this.FIELD_META[field];
-            
+            const meta = this.getMetaForField(field, rowData);
             const autofill = meta?.autofillLoadBinder;
             if (!autofill || value == null || value === '') return;
 
@@ -483,7 +507,7 @@
 
         /* ================= HELPERS ================= */
         syncJsonRow: function (rowIndex, field, value) {
-            if (!this.FIELD_MAP.includes(field)) return;
+            if (!Object.hasOwn(this.FIELD_DATA, field)) return;
 
             const rowNode = this.table.row(rowIndex).node();
             const $ta = $(rowNode).find(`textarea[name*="_jsonrow_"]`);
@@ -495,7 +519,7 @@
                 json[field] = value;
 
                 Object.keys(json).forEach(k => {
-                    if (k.includes(".") && k !== field && !this.FIELD_MAP.includes(k)) {
+                    if (k.includes(".") && k !== field && !Object.hasOwn(this.FIELD_DATA, k)) {
                         delete json[k];
                     }
                 });
