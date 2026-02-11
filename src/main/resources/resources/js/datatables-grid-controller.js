@@ -104,7 +104,7 @@
         getMetaForField: function (field, rowData) {
             if (!this.FIELD_META) return null;
             const activeSection = rowData?.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}_${field}` : field;
+            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
 
             return this.FIELD_META[compositeKey] ||
                    this.FIELD_META[field] ||
@@ -218,7 +218,7 @@
             const rowData = this.table.row(idx.row).data();
 
             const activeSection = rowData.activeSectionId;
-            const compositeKey = activeSection ? (activeSection + "_" + field) : field;
+            const compositeKey = activeSection ? (activeSection + "." + field) : field;
             
             const meta = this.FIELD_META[compositeKey] || 
                         this.FIELD_META[field] || 
@@ -232,7 +232,7 @@
         commit: function ($td, field, rowIndex, inputValue) {
             const rowData = this.table.row(rowIndex).data();
             const currentSection = rowData.activeSectionId;
-            const compositeKey = currentSection ? `${currentSection}_${field}` : field;
+            const compositeKey = currentSection ? `${currentSection}.${field}` : field;
             const meta = this.FIELD_META[compositeKey] || this.FIELD_META[field] || {};
             
             let rawValue = (meta.formatter || meta.type === 'number') ? DataTablesFactory.normalizeNumber(inputValue) : inputValue;
@@ -277,14 +277,27 @@
             const targets = this.fieldCalculateMap[field];
             const activeSection = rowData.activeSectionId;
 
-            if (targets) {
-                targets.forEach(targetKey => {
+            if (targets && Array.isArray(targets) && targets.length > 0) {
+                let targetsToProcess = [];
+
+                if (targets.length === 1) {
+                    targetsToProcess = targets;
+                } else {
+                    targetsToProcess = targets.filter(targetKey => {
+                        if (!activeSection) return !targetKey.includes(".");
+
+                        return targetKey.startsWith(activeSection + ".") || !targetKey.includes(".");
+                    });
+                }
+
+                targetsToProcess.forEach(targetKey => {
                     const fieldId = this._getCleanFieldId(targetKey);
 
-                    if (!this.FIELD_MAP.includes(fieldId)) {
-                        rowData[fieldId] = 0;
+                    if (this.FIELD_MAP && !this.FIELD_MAP.includes(fieldId)) {
+                        // rowData[fieldId] = 0;
                         return;
                     }
+
                     this.handleCalculation(targetKey, rowIndex, rowData);
                 });
             }
@@ -312,7 +325,7 @@
             const calc = meta.calculationLoadBinder;
             let equation = calc.equation;
             const variables = calc.variables || [];
-            const fieldId = meta.fieldId || compositeKey.split('_').pop();
+            const fieldId = meta.fieldId || compositeKey.split('.').pop();
 
             variables.forEach(v => {
                 const rawValue = rowData[v.variableName] || 0;
@@ -381,7 +394,7 @@
             const calc = meta?.calculationLoadBinder;
             if (!calc) return;
 
-            const fieldId = meta.fieldId || compositeKey.split('_').pop();
+            const fieldId = meta.fieldId || compositeKey.split('.').pop();
             const params = {};
             
             calc.variables.forEach(v => {
@@ -419,7 +432,7 @@
         /* ================= AUTOFILL ================= */
         triggerAutofill: function (field, rowIndex, value, rowData) {
             const activeSection = rowData.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}_${field}` : field;
+            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
             const meta = this.FIELD_META[compositeKey] || this.FIELD_META[field];
             
             const autofill = meta?.autofillLoadBinder;
@@ -482,7 +495,7 @@
                 json[field] = value;
 
                 Object.keys(json).forEach(k => {
-                    if (k.includes("_") && k !== field && !this.FIELD_MAP.includes(k)) {
+                    if (k.includes(".") && k !== field && !this.FIELD_MAP.includes(k)) {
                         delete json[k];
                     }
                 });
@@ -608,19 +621,19 @@
         },
 
         _getCleanFieldId: function(targetKey) {
-            if (!targetKey.includes("_")) return targetKey;
+            if (!targetKey.includes(".")) return targetKey;
 
             const sections = Object.values(this.FIELD_META)
                 .filter(m => m.type === 'section')
                 .map(m => m.id);
 
             for (const sectionId of sections) {
-                if (targetKey.startsWith(sectionId + "_")) {
+                if (targetKey.startsWith(sectionId + ".")) {
                     return targetKey.substring(sectionId.length + 1);
                 }
             }
 
-            return targetKey.split('_').slice(1).join('_');
+            return targetKey.split('.').slice(1).join('.');
         }
     };
 })();

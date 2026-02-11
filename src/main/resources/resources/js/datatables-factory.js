@@ -202,7 +202,7 @@
                             let compositeKey = '';
                             if(!activeSection){
                                 const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                                if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                                if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
                             }else{
                                 compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
                             }
@@ -233,9 +233,9 @@
                         let compositeKey = '';
                         if(!activeSection){
                             const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                            if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '_' + col.name : col.name;
+                            if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
                         }else{
-                            compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                            compositeKey = activeSection ? `${activeSection}.${col.name}` : col.name;
                         }
                         const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
 

@@ -280,7 +280,7 @@ public class FormMetaBuilder {
 
         /* ===== USE COMPOSITE KEY FOR RESULT MAP ===== */
         if (!isUserview){
-            String compositeKey = (Validator.isNotNullOrEmpty(sectionId)) ? sectionId + "_" + fieldId : fieldId;
+            String compositeKey = (Validator.isNotNullOrEmpty(sectionId)) ? sectionId + "." + fieldId : fieldId;
             result.put(compositeKey, meta);
         }else {
             result.put(fieldId, meta);
