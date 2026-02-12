@@ -124,7 +124,7 @@ public class FormMetaBuilder {
             }
 
             /* ================= FIELD ================= */
-            if (isField(className)) {
+            if (isField(className) && !isCustomHTML(className)) {
                 handleField(
                         element,
                         props,
@@ -451,6 +451,10 @@ public class FormMetaBuilder {
     private boolean isField(String className) {
         return className.startsWith("org.joget.apps.form.lib")
                 || className.startsWith("com.kinnarastudio");
+    }
+
+    private boolean isCustomHTML(String className) {
+        return className.equals("org.joget.apps.form.lib.CustomHTML");
     }
 
     private boolean isTrue(JSONObject obj, String key) {
