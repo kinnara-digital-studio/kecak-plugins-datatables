@@ -31,6 +31,8 @@
         appId: null,
         appVersion: null,
 
+        calcToken: 0,
+
         /* ================= INIT ================= */
         init: function(opts) {
             Object.assign(this, {
@@ -52,6 +54,8 @@
             });
 
             this.fieldCalcMap();
+            this.validateDependencyGraph();
+
             this.bindEvents();
             this.bindEmptyState();
         },
@@ -201,9 +205,8 @@
             const newValue = this.editingCell.find('.cell-editor').val();
 
             this.isSaving = true;
-            this.showLoadingState(true);
 
-            this.liveCalculate()
+            this.triggerCalculate()
                 .then(function() {
                     if (newValue === self.editingCell.attr('data-value')) {
                         self.resetState();
@@ -223,13 +226,14 @@
         doSave: function(newValue) {
             this.isSaving = true;
             const self = this;
+            
             const $cell = this.editingCell;
             const field = $cell.data('field');
             const id = $cell.data('id');
             const meta = $cell.data('meta');
             const formId = meta.isSubForm ? meta.formDefId : this.editFormDefId;
 
-            const $row = this.table.row($cell.closest('tr'));
+            const row = this.table.row($cell.closest('tr'));
             const rowData = self.calculatedRowData ?
                 $.extend({}, self.calculatedRowData) :
                 $.extend({}, row.data());
@@ -317,7 +321,6 @@
             this.editingCell = null;
             this.originalRowData = null;
             this.isSaving = false;
-            this.showLoadingState(false);
         },
 
         /* ================= DELETE ================= */
@@ -430,170 +433,148 @@
             this.fieldCalculateMap = map;
         },
 
-        liveCalculate: function() {
-            const self = this;
+        validateDependencyGraph: function () {
+            const graph = {};
 
-            if (!this.editingCell) return Promise.resolve();
+            // Build forward graph
+            Object.keys(this.FIELD_META).forEach(field => {
+                const meta = this.FIELD_META[field];
+                const vars = meta?.calculationLoadBinder?.variables || [];
+
+                graph[field] = vars.map(v => v.variableName);
+            });
+
+            const visited = {};
+            const stack = {};
+
+            const hasCycle = (node) => {
+                if (!visited[node]) {
+                    visited[node] = true;
+                    stack[node] = true;
+
+                    for (const neighbor of (graph[node] || [])) {
+                        if (!visited[neighbor] && hasCycle(neighbor)) {
+                            return true;
+                        } else if (stack[neighbor]) {
+                            return true;
+                        }
+                    }
+                }
+                stack[node] = false;
+                return false;
+            };
+
+            for (const field in graph) {
+                if (hasCycle(field)) {
+                    console.error("Circular dependency detected in calculation:", field);
+                    alert("Circular calculation detected. Please fix field configuration.");
+                }
+            }
+
+            console.log("Dependency graph validated. No circular reference.");
+        },
+
+        triggerCalculate: async function () {
+            if (!this.editingCell) return;
+
+            const token = ++this.calcToken;
 
             const $row = this.editingCell.closest('tr');
             const row = this.table.row($row);
 
-            const rowData = $.extend(true, {}, row.data());
+            let rowData = structuredClone(row.data());
 
-            const field = this.editingCell.data('field');
+            const editedField = this.editingCell.data('field');
+            const newValue = this.editingCell.find('.cell-editor').val();
+            rowData[editedField] = newValue;
 
-            const val = this.editingCell.find('.cell-editor').val();
-            rowData[field] = val;
+            const queue = (this.fieldCalculateMap[editedField] || []).slice();
+            const visited = new Set();
 
-            const firstLevelFields = this.fieldCalculateMap[field] || [];
+            while (queue.length > 0) {
+                const field = queue.shift();
 
-            if (firstLevelFields.length === 0) {
-                row.data(rowData).invalidate();
-                this.calculatedRowData = rowData;
-                return Promise.resolve();
+                if (visited.has(field)) continue;
+                visited.add(field);
+
+                const result = await this.computeField(field, rowData, token);
+                if (token !== this.calcToken) return;
+
+                rowData[field] = result;
+
+                const children = this.fieldCalculateMap[field] || [];
+                queue.push(...children);
             }
 
-            const processLevel = function(fieldsToCalc) {
-                if (!fieldsToCalc || fieldsToCalc.length === 0) {
-                    return Promise.resolve();
-                }
-
-                const promises = fieldsToCalc.map(function(targetField) {
-                    return self.calculateField(targetField, row, rowData, false);
-                });
-
-                return Promise.all(promises).then(function(results) {
-                    let nextLevelFields = [];
-                    results.forEach(function(dependents) {
-                        if (dependents && Array.isArray(dependents)) {
-                            nextLevelFields = nextLevelFields.concat(dependents);
-                        }
-                    });
-
-                    const uniqueNextFields = nextLevelFields.filter(function(item, pos) {
-                        return nextLevelFields.indexOf(item) == pos;
-                    });
-
-                    return processLevel(uniqueNextFields);
-                });
-            };
-
-            return processLevel(firstLevelFields).then(function() {
-                row.data(rowData);
-                row.invalidate();
-                row.draw(false);
-                self.calculatedRowData = rowData;
-            });
+            this.calculatedRowData = rowData;
+            row.data(rowData).invalidate();
         },
 
-        calculateField: function(fieldId, row, rowData, isRecursive) {
-            if (typeof isRecursive === 'undefined') isRecursive = true;
-
-            const self = this;
+        computeField: function (fieldId, rowData, token) {
             const meta = this.FIELD_META[fieldId];
-
-            if (!meta || !meta.calculationLoadBinder) return Promise.resolve([]);
+            if (!meta?.calculationLoadBinder) {
+                return Promise.resolve(rowData[fieldId] || 0);
+            }
 
             const calc = meta.calculationLoadBinder;
-            let calcPromise;
 
-            if (calc.useJsEquation === "true" || calc.useJsEquation === true) {
-                calcPromise = this.calculateFieldLocal(fieldId, row, rowData);
-            } else {
-                calcPromise = this.calculateFieldRemote(fieldId, row, rowData);
+            if (calc.useJsEquation === true || calc.useJsEquation === "true") {
+                return Promise.resolve(this.computeLocal(calc, rowData));
             }
 
-            return calcPromise.then(function(newValue) {
-                rowData[fieldId] = newValue;
-
-                if (!meta.isHidden) {
-                    const cell = self.findCellByField(fieldId, row);
-                    if (cell && cell.length > 0 && !cell.hasClass('editing')) {
-                        self.applyValue(cell, newValue, meta);
-                    }
-                }
-
-                const children = self.fieldCalculateMap[fieldId] || [];
-
-                if (isRecursive === false) {
-                    return Promise.resolve(children);
-                } else {
-                    if (children.length > 0) {
-                        const childPromises = children.map(function(childKey) {
-                            return self.calculateField(childKey, row, rowData, true);
-                        });
-                        return Promise.all(childPromises);
-                    }
-                    return Promise.resolve([]);
-                }
-            });
+            return this.computeRemote(fieldId, calc, rowData, token);
         },
 
-        calculateFieldLocal: function(fieldId, row, rowData) {
-            const self = this;
+        computeLocal: function (calc, rowData) {
+            let equation = calc.equation;
+
+            (calc.variables || []).forEach(v => {
+                const val = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
+                equation = equation.replace(
+                    new RegExp("\\b" + v.variableName + "\\b", "g"),
+                    val
+                );
+            });
+
+            try {
+                let result = Function('"use strict"; return (' + equation + ')')();
+
+                if (calc.roundNumber?.isRoundNumber === "true") {
+                    result = this.applyAdvancedRounding(result, calc.roundNumber);
+                }
+
+                return isFinite(result) ? result : 0;
+            } catch (e) {
+                console.error("Local calc error:", e);
+                return 0;
+            }
+        },
+
+        computeRemote: function (fieldId, calc, rowData, token) {
             return new Promise((resolve) => {
-                const meta = self.FIELD_META[fieldId];
 
-                if (!meta) {
-                    resolve(rowData[fieldId] || 0);
-                    return;
-                }
-
-                const calc = meta.calculationLoadBinder;
-                let equation = calc.equation;
-
-                (calc.variables || []).forEach(v => {
-                    const val = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
-                    equation = equation.replace(new RegExp("\\b" + v.variableName + "\\b", "g"), val);
-                });
-
-                try {
-                    let result = eval(equation);
-                    if (calc.roundNumber?.isRoundNumber === "true") {
-                        result = self.applyAdvancedRounding(result, calc.roundNumber);
-                    }
-                    resolve(result);
-                } catch (e) {
-                    console.error(`Local calc error for ${fieldId}:`, e);
-                    resolve(rowData[fieldId] || 0);
-                }
-            });
-        },
-
-        calculateFieldRemote: function(fieldId, row, rowData) {
-            const self = this;
-            return new Promise(function(resolve, reject) {
-                const meta = self.FIELD_META[fieldId];
-
-                if (!meta || !meta.calculationLoadBinder) {
-                    resolve(rowData[fieldId] || 0);
-                    return;
-                }
-
-                const calc = meta.calculationLoadBinder;
                 const params = {};
-                (calc.variables || []).forEach(function(v) {
-                    params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
+                (calc.variables || []).forEach(v => {
+                    params[v.variableName] =
+                        DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
                 });
 
                 $.ajax({
-                    url: self.BASE_URL + self.CALCULATION_URL + '?action=calculate',
+                    url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
                     type: 'POST',
                     contentType: 'application/json',
-                    dataType: 'json',
                     data: JSON.stringify({
-                        formDefId: meta.isSubForm ? meta.formDefId : self.editFormDefId,
+                        formDefId: this.editFormDefId,
                         fieldId: fieldId,
                         primaryKey: rowData.id,
                         requestParams: params
                     }),
-                    success: function(res) {
-                        const val = (res && res.value != null) ? res.value : 0;
-                        resolve(val);
+                    success: (res) => {
+                        if (token !== this.calcToken) return;
+                        resolve(res?.value ?? 0);
                     },
-                    error: function(err) {
-                        console.error("Remote calc error:", err);
-                        resolve(rowData[fieldId] || 0);
+                    error: () => {
+                        resolve(0);
                     }
                 });
             });
@@ -626,17 +607,6 @@
             }
 
             return rounded / factor;
-        },
-
-        showLoadingState: function(isLoading) {
-            const $table = this.table.table().node();
-            if (isLoading) {
-                $($table).css('opacity', '0.5');
-                $('body').css('cursor', 'wait');
-            } else {
-                $($table).css('opacity', '1');
-                $('body').css('cursor', 'default');
-            }
         },
 
         /* ================= WORKFLOW ================= */
