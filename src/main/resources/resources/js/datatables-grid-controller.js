@@ -25,6 +25,8 @@
         appId: null,
         appVersion: null,
 
+        calcToken: 0,
+
         /* ================= CORE INIT ================= */
         init: function (opts, dataRows) {
             if (!opts || !opts.table) throw new Error('DataTable instance is required');
@@ -47,6 +49,7 @@
 
             this._buildFieldData();
             this._initFieldCalcMap();
+            this.validateDependencyGraph();
             this.bindEvents();
             this.bindEmptyState();
 
@@ -163,7 +166,7 @@
                     const newValue = $editor.val();
                     const rowData = self.table.row(idx.row).data();
 
-                    const tempRowData = $.extend({}, rowData);
+                    const tempRowData = structuredClone(rowData);
 
                     const activeSection = rowData.activeSectionId;
                     const compositeKey = activeSection ? `${activeSection}.${field}` : field;
@@ -355,6 +358,46 @@
             });
         },
 
+        validateDependencyGraph: function () {
+            const graph = {};
+
+            Object.keys(this.FIELD_META).forEach(field => {
+                const meta = this.FIELD_META[field];
+                const vars = meta?.calculationLoadBinder?.variables || [];
+
+                graph[field] = vars.map(v => v.variableName);
+            });
+
+            const visited = {};
+            const stack = {};
+
+            const hasCycle = (node) => {
+                if (!visited[node]) {
+                    visited[node] = true;
+                    stack[node] = true;
+
+                    for (const neighbor of (graph[node] || [])) {
+                        if (!visited[neighbor] && hasCycle(neighbor)) {
+                            return true;
+                        } else if (stack[neighbor]) {
+                            return true;
+                        }
+                    }
+                }
+                stack[node] = false;
+                return false;
+            };
+
+            for (const field in graph) {
+                if (hasCycle(field)) {
+                    console.error("Circular dependency detected in calculation:", field);
+                    alert("Circular calculation detected. Please fix field configuration.");
+                }
+            }
+
+            console.log("Dependency graph validated. No circular reference.");
+        },
+
         triggerCalculate: function (field, rowIndex, rowData) {
             const targets = this.fieldCalculateMap[field];
             const activeSection = rowData.activeSectionId;
@@ -412,7 +455,7 @@
             });
 
             try {
-                let result = eval(equation);
+                let result = Function('"use strict"; return (' + equation + ')')();
 
                 if (!isFinite(result) || isNaN(result)) {
                     result = 0;
@@ -438,35 +481,6 @@
             } catch (e) {
                 console.error("Local Calculation Error [" + compositeKey + "]: ", e);
             }
-        },
-
-        applyAdvancedRounding: function (value, cfg) {
-            const decimals = parseInt(cfg.decimalPlaces || 0);
-            const factor = Math.pow(10, decimals);
-            
-            const tempValue = value * factor;
-            let rounded;
-
-            switch (cfg.roundingMode) {
-                case "round_down":
-                    rounded = Math.floor(tempValue);
-                    break;
-                    
-                case "round_up":
-                    rounded = Math.ceil(tempValue);
-                    break;
-                    
-                case "round_half_up":
-                    rounded = Math.round((tempValue + Number.EPSILON) * 100) / 100;
-                    rounded = Math.round(tempValue);
-                    break;
-
-                default:
-                    rounded = tempValue;
-                    break;
-            }
-
-            return rounded / factor;
         },
 
         calculateFieldRemote: function (compositeKey, rowIndex, rowData) {
@@ -508,6 +522,35 @@
                     self.triggerCalculate(fieldId, rowIndex, rowData);
                 }
             });
+        },
+
+        applyAdvancedRounding: function (value, cfg) {
+            const decimals = parseInt(cfg.decimalPlaces || 0);
+            const factor = Math.pow(10, decimals);
+            
+            const tempValue = value * factor;
+            let rounded;
+
+            switch (cfg.roundingMode) {
+                case "round_down":
+                    rounded = Math.floor(tempValue);
+                    break;
+                    
+                case "round_up":
+                    rounded = Math.ceil(tempValue);
+                    break;
+                    
+                case "round_half_up":
+                    rounded = Math.round((tempValue + Number.EPSILON) * 100) / 100;
+                    rounded = Math.round(tempValue);
+                    break;
+
+                default:
+                    rounded = tempValue;
+                    break;
+            }
+
+            return rounded / factor;
         },
 
         /* ================= AUTOFILL ================= */

@@ -80,21 +80,19 @@ public class FormMetaBuilder {
 
     public Map<String, Map<String, Object>> extractFieldMeta(String formDefId, FormData formData) throws JSONException {
         JSONObject jsonForm;
-        boolean isUserview = false;
         if (Validator.isNotNullOrEmpty(formData)){
             jsonForm = this.getSelectedJsonForm(formData, formDefId);
         }else {
             jsonForm = this.getJsonFormCached(formDefId);
-            isUserview = true;
         }
         Map<String, Map<String, Object>> result = new HashMap<>();
-        this.walkElements(jsonForm.getJSONArray("elements"), result, isUserview);
+        this.walkElements(jsonForm.getJSONArray("elements"), result);
         return result;
     }
 
-    protected void walkElements(JSONArray elements, Map<String, Map<String, Object>> result, boolean isUserview)
+    protected void walkElements(JSONArray elements, Map<String, Map<String, Object>> result)
             throws JSONException {
-        walkElements(elements, result, false, null, null, isUserview);
+        walkElements(elements, result, false, null, null);
     }
 
     protected void walkElements(
@@ -102,8 +100,7 @@ public class FormMetaBuilder {
             Map<String, Map<String, Object>> result,
             boolean inSubForm,
             String subFormDefId,
-            String sectionId,
-            boolean isUserview
+            String sectionId
     ) throws JSONException {
 
         for (int i = 0; i < elements.length(); i++) {
@@ -112,14 +109,14 @@ public class FormMetaBuilder {
             JSONObject props   = element.optJSONObject("properties");
 
             /* ================= SECTION ================= */
-            if (handleSection(element, className, result, inSubForm, subFormDefId, sectionId, isUserview)) {
+            if (handleSection(element, className, result, inSubForm, subFormDefId, sectionId)) {
                 continue;
             }
 
             if (Validator.isNullOrEmpty(props)) continue;
 
             /* ================= SUBFORM ================= */
-            if (handleSubForm(element, props, className, result, sectionId, isUserview)) {
+            if (handleSubForm(element, props, className, result, sectionId)) {
                 continue;
             }
 
@@ -132,13 +129,12 @@ public class FormMetaBuilder {
                         result,
                         inSubForm,
                         subFormDefId,
-                        sectionId,
-                        isUserview
+                        sectionId
                 );
             }
 
             /* ================= CHILD ================= */
-            walkChildren(element, result, inSubForm, subFormDefId, sectionId, isUserview);
+            walkChildren(element, result, inSubForm, subFormDefId, sectionId);
         }
     }
 
@@ -152,8 +148,7 @@ public class FormMetaBuilder {
             Map<String, Map<String, Object>> result,
             boolean inSubForm,
             String subFormDefId,
-            String sectionId,
-            boolean isUserview
+            String sectionId
     ) throws JSONException {
 
         if (!FormElementType.isSection(className)) return false;
@@ -164,7 +159,7 @@ public class FormMetaBuilder {
         /* ==========================================================
         * EXTRACT VISIBILITY META
         * ========================================================== */
-        if (props != null && props.has("visibilityControl") && !isUserview) {
+        if (props != null && props.has("visibilityControl")) {
             Map<String, Object> visibilityMeta = new HashMap<>();
             visibilityMeta.put("id", currentSectionId);
             visibilityMeta.put("type", "section");
@@ -183,8 +178,7 @@ public class FormMetaBuilder {
                     result,
                     inSubForm,
                     subFormDefId,
-                    currentSectionId,
-                    isUserview
+                    currentSectionId
             );
         }
         return true;
@@ -199,8 +193,7 @@ public class FormMetaBuilder {
             JSONObject props,
             String className,
             Map<String, Map<String, Object>> result,
-            String sectionId,
-            boolean isUserview
+            String sectionId
     ) throws JSONException {
 
         if (!FormElementType.isSubForm(className)) return false;
@@ -213,7 +206,7 @@ public class FormMetaBuilder {
 
         JSONArray subElements = subFormJson.optJSONArray("elements");
         if (subElements != null) {
-            walkElements(subElements, result, true, sfDefId, sectionId, isUserview);
+            walkElements(subElements, result, true, sfDefId, sectionId);
         }
         return true;
     }
@@ -229,8 +222,7 @@ public class FormMetaBuilder {
             Map<String, Map<String, Object>> result,
             boolean inSubForm,
             String subFormDefId,
-            String sectionId,
-            boolean isUserview
+            String sectionId
     ) throws JSONException {
 
         String fieldId = props.optString("id");
@@ -239,9 +231,7 @@ public class FormMetaBuilder {
         Map<String, Object> meta = new HashMap<>();
 
         /* ===== BASIC ===== */
-        if (!isUserview) {
-            meta.put("fieldId", fieldId);
-        }
+        meta.put("fieldId", fieldId);
         meta.put("sectionId", sectionId);
         meta.put("className", className);
         meta.put("readonly", isTrue(props, "readonly"));
@@ -262,7 +252,7 @@ public class FormMetaBuilder {
         meta.put("formatter", resolveFormatter(props));
 
         /* ===== CALCULATION ===== */
-        meta.put("calculationLoadBinder", resolveCalculationBinder(props, sectionId, isUserview));
+        meta.put("calculationLoadBinder", resolveCalculationBinder(props, sectionId));
 
         /* ===== AUTOFILL ===== */
         meta.put("autofillLoadBinder", resolveAutofillBinder(props));
@@ -279,12 +269,8 @@ public class FormMetaBuilder {
         }
 
         /* ===== USE COMPOSITE KEY FOR RESULT MAP ===== */
-        if (!isUserview){
-            String compositeKey = (Validator.isNotNullOrEmpty(sectionId)) ? sectionId + "." + fieldId : fieldId;
-            result.put(compositeKey, meta);
-        }else {
-            result.put(fieldId, meta);
-        }
+        String compositeKey = (Validator.isNotNullOrEmpty(sectionId)) ? sectionId + "." + fieldId : fieldId;
+        result.put(compositeKey, meta);
     }
 
     /* ==========================================================
@@ -330,14 +316,14 @@ public class FormMetaBuilder {
     /* ==========================================================
      * CALCULATION
      * ========================================================== */
-    private Map<String, Object> resolveCalculationBinder(JSONObject props, String sectionId, boolean isUserview) {
+    private Map<String, Object> resolveCalculationBinder(JSONObject props, String sectionId) {
         JSONObject calc = props.optJSONObject("calculationLoadBinder");
 
         JSONArray originalVars = props.optJSONArray("variables");
         JSONArray mappedVars = new JSONArray();
 
         // Map variables to include targetCompositeKey
-        if (originalVars != null && !isUserview) {
+        if (originalVars != null) {
             for (int i = 0; i < originalVars.length(); i++) {
                 try {
                     JSONObject varObj = new JSONObject(originalVars.getJSONObject(i).toString());
@@ -363,11 +349,8 @@ public class FormMetaBuilder {
                 Map<String, Object> meta = new HashMap<>();
                 meta.put("useJsEquation", props.optString("useJsEquation"));
                 meta.put("equation", props.optString("jsEquation"));
-                if (!isUserview){
-                    meta.put("variables", mappedVars);
-                }else {
-                    meta.put("variables", originalVars);
-                }
+                meta.put("variables", mappedVars);
+
                 Map<String, Object> roundNumber = new HashMap<>();
 
                 if (Validator.isNotNullOrEmpty(props.optString("roundNumber"))) {
@@ -388,11 +371,7 @@ public class FormMetaBuilder {
             JSONObject cp = calc.optJSONObject("properties");
             meta.put("equation", cp.optString("equation"));
             meta.put("debug", cp.optString("debug"));
-            if (!isUserview){
-                meta.put("variables", mappedVars);
-            }else {
-                meta.put("variables", originalVars);
-            }
+            meta.put("variables", mappedVars);
 
             return meta;
         }
@@ -432,8 +411,7 @@ public class FormMetaBuilder {
             Map<String, Map<String, Object>> result,
             boolean inSubForm,
             String subFormDefId,
-            String sectionId,
-            boolean isUserview
+            String sectionId
     ) throws JSONException {
 
         if (element.has("elements")) {
@@ -442,8 +420,7 @@ public class FormMetaBuilder {
                     result,
                     inSubForm,
                     subFormDefId,
-                    sectionId,
-                    isUserview
+                    sectionId
             );
         }
     }

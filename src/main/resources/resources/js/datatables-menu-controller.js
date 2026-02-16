@@ -53,7 +53,7 @@
                 appVersion: opts.appVersion
             });
 
-            this.fieldCalcMap();
+            this._initFieldCalcMap();
             this.validateDependencyGraph();
 
             this.bindEvents();
@@ -112,6 +112,33 @@
                     show: count === 0
                 });
             });
+        },
+
+        /* ================= LOOKUP STRATEGY ================= */
+        getMetaForField: function (field, rowData) {
+            if (!this.FIELD_META) return null;
+            const activeSection = rowData?.activeSectionId;
+            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
+
+            return this.FIELD_META[compositeKey] ||
+                   this.FIELD_META[field] ||
+                   Object.values(this.FIELD_META).find(m => m && (m.fieldId === field || m.id === field));
+        },
+
+        getCleanFieldId: function(targetKey) {
+            if (!targetKey.includes(".")) return targetKey;
+
+            const sections = Object.values(this.FIELD_META)
+                .filter(m => m.type === 'section')
+                .map(m => m.id);
+
+            for (const sectionId of sections) {
+                if (targetKey.startsWith(sectionId + ".")) {
+                    return targetKey.substring(sectionId.length + 1);
+                }
+            }
+
+            return targetKey.split('.').slice(1).join('.');
         },
 
         /* ================= EVENTS ================= */
@@ -182,12 +209,13 @@
             if (!this.editable || this.editingCell || this.isSaving) return;
 
             const field = $cell.data('field');
-            const meta = this.FIELD_META[field];
+            const row = this.table.row($cell.closest('tr'));
+            this.originalRowData = structuredClone(row.data());
+            
+            const meta = this.getMetaForField(field, row.data());
 
             if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
 
-            const row = this.table.row($cell.closest('tr'));
-            this.originalRowData = $.extend(true, {}, row.data());
             this.editingCell = $cell;
 
             $cell.addClass('editing')
@@ -234,19 +262,18 @@
             const formId = meta.isSubForm ? meta.formDefId : this.editFormDefId;
 
             const row = this.table.row($cell.closest('tr'));
-            const rowData = self.calculatedRowData ?
-                $.extend({}, self.calculatedRowData) :
-                $.extend({}, row.data());
+            const rowData = structuredClone(self.calculatedRowData ?? row.data());
             let saveValue = (meta.type === 'date') ? DataTablesFactory.ensureDateString(newValue) : newValue;
             rowData[field] = saveValue;
 
             const body = {
                 id: id
             };
-            Object.keys(this.FIELD_META).forEach(f => {
-                if (rowData[f] != null) {
-                    const m = this.FIELD_META[f] || {};
-                    body[f] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[f]) : rowData[f];
+            Object.keys(this.FIELD_META).forEach(field => {
+                const fieldId = this.getCleanFieldId(field);
+                if (rowData[fieldId] != null) {
+                    const m = this.getMetaForField(field, rowData) || {};
+                    body[fieldId] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[fieldId]) : rowData[fieldId];
                 }
             });
 
@@ -257,7 +284,7 @@
                 data: JSON.stringify(body),
                 success: () => {
                     Object.keys(body).forEach(([field, value]) => {
-                        const fm = self.FIELD_META[field];
+                        const fm = self.getMetaForField(field, rowData);
                         const commitValue = (fm && fm.type === 'date') ? newValue : value;
                         this.commitRowChange(field, commitValue);
                     });
@@ -280,7 +307,7 @@
         commitRowChange: function(field, value) {
             const row = this.table.row(this.editingCell.closest('tr'));
             const data = row.data();
-            const meta = this.FIELD_META[field];
+            const meta = this.getMetaForField(field, data);
             let commitValue = value;
 
             if (meta) {
@@ -308,7 +335,7 @@
             row.data(this.originalRowData);
 
             Object.keys(this.FIELD_META).forEach(f => {
-                const meta = this.FIELD_META[f];
+                const meta = this.getMetaForField(f, row.data())
                 if (meta.isHidden) return;
                 const cell = this.findCellByField(f, row);
                 if (cell) this.applyValue(cell, this.originalRowData[f], meta);
@@ -419,24 +446,26 @@
         },
 
         /* ================= CALCULATION ================= */
-        fieldCalcMap: function() {
-            const map = {};
-            Object.entries(this.FIELD_META).forEach(([field, meta]) => {
-                const vars = meta.calculationLoadBinder?.variables;
-                if (vars) {
-                    vars.forEach(v => {
-                        map[v.variableName] = map[v.variableName] || [];
-                        map[v.variableName].push(field);
+        _initFieldCalcMap: function() {
+            this.fieldCalculateMap = {};
+            Object.keys(this.FIELD_META).forEach(key => {
+                const meta = this.FIELD_META[key];
+                const calc = meta.calculationLoadBinder;
+                if (calc?.variables) {
+                    calc.variables.forEach(v => {
+                        const varKey = v.variableName;
+                        this.fieldCalculateMap[varKey] = this.fieldCalculateMap[varKey] || [];
+                        if (!this.fieldCalculateMap[varKey].includes(key)) {
+                            this.fieldCalculateMap[varKey].push(key);
+                        }
                     });
                 }
             });
-            this.fieldCalculateMap = map;
         },
 
         validateDependencyGraph: function () {
             const graph = {};
 
-            // Build forward graph
             Object.keys(this.FIELD_META).forEach(field => {
                 const meta = this.FIELD_META[field];
                 const vars = meta?.calculationLoadBinder?.variables || [];
@@ -493,6 +522,7 @@
 
             while (queue.length > 0) {
                 const field = queue.shift();
+                const fieldId = this.getCleanFieldId(field);
 
                 if (visited.has(field)) continue;
                 visited.add(field);
@@ -500,9 +530,9 @@
                 const result = await this.computeField(field, rowData, token);
                 if (token !== this.calcToken) return;
 
-                rowData[field] = result;
+                rowData[fieldId] = result;
 
-                const children = this.fieldCalculateMap[field] || [];
+                const children = this.fieldCalculateMap[fieldId] || [];
                 queue.push(...children);
             }
 
@@ -511,7 +541,7 @@
         },
 
         computeField: function (fieldId, rowData, token) {
-            const meta = this.FIELD_META[fieldId];
+            const meta = this.getMetaForField(fieldId, rowData);
             if (!meta?.calculationLoadBinder) {
                 return Promise.resolve(rowData[fieldId] || 0);
             }
@@ -550,7 +580,8 @@
             }
         },
 
-        computeRemote: function (fieldId, calc, rowData, token) {
+        computeRemote: function (field, calc, rowData, token) {
+            const fieldId = this.getCleanFieldId(field);
             return new Promise((resolve) => {
 
                 const params = {};
@@ -652,7 +683,7 @@
             if (!serviceUrl) return;
 
             const $row = this.table.row($cell.closest('tr'));
-            const rowData = $.extend({}, $row.data());
+            const rowData = structuredClone($row.data());
 
             const payload = {
                 appId: this.jsonForm?.properties?.appId,

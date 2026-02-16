@@ -49,10 +49,9 @@
 
             if (!isInlineGrid) {
                 this._initStandardFeatures(table, opts);
-            } else {
-                this._initInlineGridListeners(table, opts);
             }
 
+            this._initControlFieldListeners(table, opts);
             return table;
         },
 
@@ -95,7 +94,7 @@
             this.initCustomToolbar(opts);
         },
 
-        _initInlineGridListeners: function(table, opts) {
+        _initControlFieldListeners: function(table, opts) {
             const controlFields = this.getControlFields(opts.fieldMeta);
             const $wrapper = $(table.table().container());
 
@@ -194,7 +193,7 @@
 
                     if (type === 'display') {
                         let meta = {};
-                        if(menuType === this.MENU_TYPE.INLINE_GRID){
+                        // if(menuType === this.MENU_TYPE.INLINE_GRID){
                             if (!row.activeSectionId && fieldMeta) {
                                 row.activeSectionId = self.processVisibility(row, fieldMeta);
                             }
@@ -207,9 +206,10 @@
                                 compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
                             }
                             meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
-                        }else{
-                            meta = fieldMeta?.[col.name] || {};
-                        }
+                        // }
+                        // else{
+                        //     meta = fieldMeta?.[col.name] || {};
+                        // }
 
                         if (meta.type === 'select') {
                             const opt = (meta.options || []).find(o => String(o.value) === String(data));
@@ -228,7 +228,7 @@
                     return data;
                 },
                 createdCell: (td, cellData, rowData) => {
-                    if(menuType === this.MENU_TYPE.INLINE_GRID){
+                    // if(menuType === this.MENU_TYPE.INLINE_GRID){
                         const activeSection = rowData.activeSectionId;
                         let compositeKey = '';
                         if(!activeSection){
@@ -251,15 +251,16 @@
                         if (meta.isHidden) {
                             $(td).hide();
                         }
-                    }else{
-                        const meta = fieldMeta?.[col.name] || {};
-                        $(td).attr({
-                            'data-id': rowData.id,
-                            'data-field': col.name,
-                            'data-value': cellData ?? '',
-                            'data-type': meta.type || 'text'
-                        }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
-                    }
+                    // }
+                    // else{
+                    //     const meta = fieldMeta?.[col.name] || {};
+                    //     $(td).attr({
+                    //         'data-id': rowData.id,
+                    //         'data-field': col.name,
+                    //         'data-value': cellData ?? '',
+                    //         'data-type': meta.type || 'text'
+                    //     }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
+                    // }
                 }
             };
         },
