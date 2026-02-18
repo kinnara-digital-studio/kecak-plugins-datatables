@@ -420,6 +420,33 @@
                 }
             });
             return Array.from(controls);
+        },
+
+        /* ================= LOOKUP STRATEGY ================= */
+        getMetaForField: function (field, rowData, fieldMeta) {
+            if (!fieldMeta) return null;
+            const activeSection = rowData?.activeSectionId;
+            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
+
+            return fieldMeta[compositeKey] ||
+                   fieldMeta[field] ||
+                   Object.values(fieldMeta).find(m => m && (m.fieldId === field || m.id === field));
+        },
+
+        getCleanFieldId: function(targetKey, fieldMeta) {
+            if (!targetKey.includes(".")) return targetKey;
+
+            const sections = Object.values(fieldMeta)
+                .filter(m => m.type === 'section')
+                .map(m => m.id);
+
+            for (const sectionId of sections) {
+                if (targetKey.startsWith(sectionId + ".")) {
+                    return targetKey.substring(sectionId.length + 1);
+                }
+            }
+
+            return targetKey.split('.').slice(1).join('.');
         }
     };
 })();

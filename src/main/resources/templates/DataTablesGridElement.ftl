@@ -12,6 +12,7 @@
         <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
 
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-calculation-engine.js"></script>
         <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-grid-controller.js"></script>
         <link href="${request.contextPath}/plugin/${className}/css/datatables-grid.css" rel="stylesheet" type="text/css" />
 

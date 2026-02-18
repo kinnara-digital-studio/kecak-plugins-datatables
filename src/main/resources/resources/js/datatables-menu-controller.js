@@ -26,12 +26,9 @@
         originalRowData: null,
         calculatedRowData: null,
         isSaving: false,
-        fieldCalculateMap: null,
 
         appId: null,
         appVersion: null,
-
-        calcToken: 0,
 
         /* ================= INIT ================= */
         init: function(opts) {
@@ -53,8 +50,12 @@
                 appVersion: opts.appVersion
             });
 
-            this._initFieldCalcMap();
-            this.validateDependencyGraph();
+            DataTablesCalculationEngine.init({
+                fieldMeta: this.FIELD_META,
+                baseUrl: this.BASE_URL,
+                calculationUrl: this.CALCULATION_URL,
+                formDefId: this.editFormDefId
+            });
 
             this.bindEvents();
             this.bindEmptyState();
@@ -112,33 +113,6 @@
                     show: count === 0
                 });
             });
-        },
-
-        /* ================= LOOKUP STRATEGY ================= */
-        getMetaForField: function (field, rowData) {
-            if (!this.FIELD_META) return null;
-            const activeSection = rowData?.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
-
-            return this.FIELD_META[compositeKey] ||
-                   this.FIELD_META[field] ||
-                   Object.values(this.FIELD_META).find(m => m && (m.fieldId === field || m.id === field));
-        },
-
-        getCleanFieldId: function(targetKey) {
-            if (!targetKey.includes(".")) return targetKey;
-
-            const sections = Object.values(this.FIELD_META)
-                .filter(m => m.type === 'section')
-                .map(m => m.id);
-
-            for (const sectionId of sections) {
-                if (targetKey.startsWith(sectionId + ".")) {
-                    return targetKey.substring(sectionId.length + 1);
-                }
-            }
-
-            return targetKey.split('.').slice(1).join('.');
         },
 
         /* ================= EVENTS ================= */
@@ -212,7 +186,7 @@
             const row = this.table.row($cell.closest('tr'));
             this.originalRowData = structuredClone(row.data());
             
-            const meta = this.getMetaForField(field, row.data());
+            const meta = DataTablesFactory.getMetaForField(field, row.data(), this.FIELD_META);
 
             if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) return;
 
@@ -270,9 +244,9 @@
                 id: id
             };
             Object.keys(this.FIELD_META).forEach(field => {
-                const fieldId = this.getCleanFieldId(field);
+                const fieldId = DataTablesFactory.getCleanFieldId(field, this.FIELD_META);
                 if (rowData[fieldId] != null) {
-                    const m = this.getMetaForField(field, rowData) || {};
+                    const m = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META) || {};
                     body[fieldId] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[fieldId]) : rowData[fieldId];
                 }
             });
@@ -284,7 +258,7 @@
                 data: JSON.stringify(body),
                 success: () => {
                     Object.keys(body).forEach(([field, value]) => {
-                        const fm = self.getMetaForField(field, rowData);
+                        const fm = DataTablesFactory.getMetaForField(field, rowData, self.FIELD_META);
                         const commitValue = (fm && fm.type === 'date') ? newValue : value;
                         this.commitRowChange(field, commitValue);
                     });
@@ -307,7 +281,7 @@
         commitRowChange: function(field, value) {
             const row = this.table.row(this.editingCell.closest('tr'));
             const data = row.data();
-            const meta = this.getMetaForField(field, data);
+            const meta = DataTablesFactory.getMetaForField(field, data, this.FIELD_META);
             let commitValue = value;
 
             if (meta) {
@@ -335,7 +309,7 @@
             row.data(this.originalRowData);
 
             Object.keys(this.FIELD_META).forEach(f => {
-                const meta = this.getMetaForField(f, row.data())
+                const meta = DataTablesFactory.getMetaForField(f, row.data(), this.FIELD_META)
                 if (meta.isHidden) return;
                 const cell = this.findCellByField(f, row);
                 if (cell) this.applyValue(cell, this.originalRowData[f], meta);
@@ -446,198 +420,38 @@
         },
 
         /* ================= CALCULATION ================= */
-        _initFieldCalcMap: function() {
-            this.fieldCalculateMap = {};
-            Object.keys(this.FIELD_META).forEach(key => {
-                const meta = this.FIELD_META[key];
-                const calc = meta.calculationLoadBinder;
-                if (calc?.variables) {
-                    calc.variables.forEach(v => {
-                        const varKey = v.variableName;
-                        this.fieldCalculateMap[varKey] = this.fieldCalculateMap[varKey] || [];
-                        if (!this.fieldCalculateMap[varKey].includes(key)) {
-                            this.fieldCalculateMap[varKey].push(key);
-                        }
-                    });
-                }
-            });
-        },
-
-        validateDependencyGraph: function () {
-            const graph = {};
-
-            Object.keys(this.FIELD_META).forEach(field => {
-                const meta = this.FIELD_META[field];
-                const vars = meta?.calculationLoadBinder?.variables || [];
-
-                graph[field] = vars.map(v => v.variableName);
-            });
-
-            const visited = {};
-            const stack = {};
-
-            const hasCycle = (node) => {
-                if (!visited[node]) {
-                    visited[node] = true;
-                    stack[node] = true;
-
-                    for (const neighbor of (graph[node] || [])) {
-                        if (!visited[neighbor] && hasCycle(neighbor)) {
-                            return true;
-                        } else if (stack[neighbor]) {
-                            return true;
-                        }
-                    }
-                }
-                stack[node] = false;
-                return false;
-            };
-
-            for (const field in graph) {
-                if (hasCycle(field)) {
-                    console.error("Circular dependency detected in calculation:", field);
-                    alert("Circular calculation detected. Please fix field configuration.");
-                }
-            }
-
-            console.log("Dependency graph validated. No circular reference.");
-        },
-
         triggerCalculate: async function () {
             if (!this.editingCell) return;
-
-            const token = ++this.calcToken;
 
             const $row = this.editingCell.closest('tr');
             const row = this.table.row($row);
 
-            let rowData = structuredClone(row.data());
-
             const editedField = this.editingCell.data('field');
             const newValue = this.editingCell.find('.cell-editor').val();
-            rowData[editedField] = newValue;
 
-            const queue = (this.fieldCalculateMap[editedField] || []).slice();
-            const visited = new Set();
-
-            while (queue.length > 0) {
-                const field = queue.shift();
-                const fieldId = this.getCleanFieldId(field);
-
-                if (visited.has(field)) continue;
-                visited.add(field);
-
-                const result = await this.computeField(field, rowData, token);
-                if (token !== this.calcToken) return;
-
-                rowData[fieldId] = result;
-
-                const children = this.fieldCalculateMap[fieldId] || [];
-                queue.push(...children);
-            }
-
-            this.calculatedRowData = rowData;
-            row.data(rowData).invalidate();
-        },
-
-        computeField: function (fieldId, rowData, token) {
-            const meta = this.getMetaForField(fieldId, rowData);
-            if (!meta?.calculationLoadBinder) {
-                return Promise.resolve(rowData[fieldId] || 0);
-            }
-
-            const calc = meta.calculationLoadBinder;
-
-            if (calc.useJsEquation === true || calc.useJsEquation === "true") {
-                return Promise.resolve(this.computeLocal(calc, rowData));
-            }
-
-            return this.computeRemote(fieldId, calc, rowData, token);
-        },
-
-        computeLocal: function (calc, rowData) {
-            let equation = calc.equation;
-
-            (calc.variables || []).forEach(v => {
-                const val = DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
-                equation = equation.replace(
-                    new RegExp("\\b" + v.variableName + "\\b", "g"),
-                    val
-                );
+            const newRowData = await DataTablesCalculationEngine.run({
+                editedField: editedField,
+                rowData: structuredClone(row.data()),
+                newValue: newValue
             });
 
-            try {
-                let result = Function('"use strict"; return (' + equation + ')')();
+            if (!newRowData) return;
 
-                if (calc.roundNumber?.isRoundNumber === "true") {
-                    result = this.applyAdvancedRounding(result, calc.roundNumber);
-                }
+            this.calculatedRowData = newRowData;
 
-                return isFinite(result) ? result : 0;
-            } catch (e) {
-                console.error("Local calc error:", e);
-                return 0;
-            }
-        },
+            row.data(newRowData).invalidate();
 
-        computeRemote: function (field, calc, rowData, token) {
-            const fieldId = this.getCleanFieldId(field);
-            return new Promise((resolve) => {
+            const rowNode = row.node();
 
-                const params = {};
-                (calc.variables || []).forEach(v => {
-                    params[v.variableName] =
-                        DataTablesFactory.normalizeNumber(rowData[v.variableName]) || 0;
-                });
+            Object.keys(newRowData).forEach(field => {
+                const $cell = $(rowNode).find(`td[data-field="${field}"]`);
+                if (!$cell.length) return;
 
-                $.ajax({
-                    url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
-                    type: 'POST',
-                    contentType: 'application/json',
-                    data: JSON.stringify({
-                        formDefId: this.editFormDefId,
-                        fieldId: fieldId,
-                        primaryKey: rowData.id,
-                        requestParams: params
-                    }),
-                    success: (res) => {
-                        if (token !== this.calcToken) return;
-                        resolve(res?.value ?? 0);
-                    },
-                    error: () => {
-                        resolve(0);
-                    }
-                });
+                const meta = DataTablesFactory.getMetaForField(field, newRowData, this.FIELD_META);
+                if (!meta || $cell.hasClass('editing')) return;
+
+                this.applyValue($cell, newRowData[field], meta);
             });
-        },
-
-        applyAdvancedRounding: function(value, cfg) {
-            const decimals = parseInt(cfg.decimalPlaces || 0);
-            const factor = Math.pow(10, decimals);
-
-            const tempValue = value * factor;
-            let rounded;
-
-            switch (cfg.roundingMode) {
-                case "round_down":
-                    rounded = Math.floor(tempValue);
-                    break;
-
-                case "round_up":
-                    rounded = Math.ceil(tempValue);
-                    break;
-
-                case "round_half_up":
-                    rounded = Math.round((tempValue + Number.EPSILON) * 100) / 100;
-                    rounded = Math.round(tempValue);
-                    break;
-
-                default:
-                    rounded = tempValue;
-                    break;
-            }
-
-            return rounded / factor;
         },
 
         /* ================= WORKFLOW ================= */

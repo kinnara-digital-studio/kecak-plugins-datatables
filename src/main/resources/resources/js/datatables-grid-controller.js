@@ -17,15 +17,12 @@
         formGridId: null,
         BASE_URL: null,
         CALCULATION_URL: null,
-        fieldCalculateMap: {},
         controlFields: [],
         formDefId: null,
         editingCell: null,
 
         appId: null,
         appVersion: null,
-
-        calcToken: 0,
 
         /* ================= CORE INIT ================= */
         init: function (opts, dataRows) {
@@ -43,13 +40,19 @@
             this.appId            = opts.appId;
             this.appVersion       = opts.appVersion;
 
-            this.FIELD_MAP = opts.fieldMap || this._buildFieldMap(opts.columns);
+            this.FIELD_MAP = opts.fieldMap || this.buildFieldMap(opts.columns);
 
             this.controlFields = DataTablesFactory.getControlFields(this.FIELD_META);
 
-            this._buildFieldData();
-            this._initFieldCalcMap();
-            this.validateDependencyGraph();
+            this.buildFieldData();
+
+            DataTablesCalculationEngine.init({
+                fieldMeta: this.FIELD_META,
+                baseUrl: this.BASE_URL,
+                calculationUrl: this.CALCULATION_URL,
+                formDefId: this.formDefId
+            });
+
             this.bindEvents();
             this.bindEmptyState();
 
@@ -87,6 +90,7 @@
 
         triggerInitialCalculations: function () {
             const self = this;
+            const fieldCalculateMap = DataTablesCalculationEngine.fieldCalculateMap;
             if (!this.table) return;
 
             this.table.rows().every(function (rowIdx) {
@@ -94,37 +98,26 @@
                 const rowIndex = rowIdx;
 
                 self.FIELD_MAP.forEach(field => {
-                    if (field && self.fieldCalculateMap[field]) {
+                    if (field && fieldCalculateMap[field]) {
                         self.triggerCalculate(field, rowIndex, rowData);
                     }
                 });
             });
         },
 
-        _buildFieldMap: function (columns) {
+        buildFieldMap: function (columns) {
             return (columns || []).map(col => (col && col.name ? col.name : null));
         },
 
-        _buildFieldData: function () {
+        buildFieldData: function () {
             this.FIELD_DATA = {};
             Object.keys(this.FIELD_META).forEach(key => {
                 const meta = this.FIELD_META[key];
                 if(meta.type !== 'section'){
-                    const fieldId = this._getCleanFieldId(key);
+                    const fieldId = DataTablesFactory.getCleanFieldId(key, this.FIELD_META);
                     this.FIELD_DATA[fieldId] = '';
                 }
             });
-        },
-
-        /* ================= LOOKUP STRATEGY ================= */
-        getMetaForField: function (field, rowData) {
-            if (!this.FIELD_META) return null;
-            const activeSection = rowData?.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
-
-            return this.FIELD_META[compositeKey] ||
-                   this.FIELD_META[field] ||
-                   Object.values(this.FIELD_META).find(m => m && (m.fieldId === field || m.id === field));
         },
 
         /* ================= EVENTS ================= */
@@ -147,7 +140,7 @@
                     e.preventDefault();
                     self.commit($td, field, idx.row, $editor.val());
                     self.editingCell = null;
-                    if (e.key === 'Tab') self._focusNextCell($td, e.shiftKey);
+                    if (e.key === 'Tab') self.focusNextCell($td, e.shiftKey);
                 }
                 if (e.key === 'Escape') self.cancelEdit($td);
             });
@@ -220,7 +213,7 @@
             this.updateRowCount();
         },
 
-        _appendJsonRowMarkup: function (row, rowIndex, existingData) {
+        appendJsonRowMarkup: function (row, rowIndex, existingData) {
             const jsonToStore = {};
             Object.keys(this.FIELD_DATA).forEach(field => {
                 jsonToStore[field] = existingData[field] ?? '';
@@ -258,7 +251,7 @@
 
             const field = this.FIELD_MAP[idx.column];
             const rowData = this.table.row(idx.row).data();
-            const meta = this.getMetaForField(field, rowData);
+            const meta = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META);
 
             if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) {
                 return;
@@ -340,224 +333,40 @@
             this.triggerCalculate(field, rowIndex, rowData);
         },
 
-        /* ================= CALCULATION ENGINE ================= */
-        _initFieldCalcMap: function () {
-            this.fieldCalculateMap = {};
-            Object.keys(this.FIELD_META).forEach(key => {
-                const meta = this.FIELD_META[key];
-                const calc = meta.calculationLoadBinder;
-                if (calc?.variables) {
-                    calc.variables.forEach(v => {
-                        const varKey = v.variableName;
-                        this.fieldCalculateMap[varKey] = this.fieldCalculateMap[varKey] || [];
-                        if (!this.fieldCalculateMap[varKey].includes(key)) {
-                            this.fieldCalculateMap[varKey].push(key);
-                        }
-                    });
-                }
-            });
-        },
+        /* ================= CALCULATION ================= */
+        triggerCalculate: async function (field, rowIndex, rowData) {
 
-        validateDependencyGraph: function () {
-            const graph = {};
+            const row = this.table.row(rowIndex);
 
-            Object.keys(this.FIELD_META).forEach(field => {
-                const meta = this.FIELD_META[field];
-                const vars = meta?.calculationLoadBinder?.variables || [];
-
-                graph[field] = vars.map(v => v.variableName);
+            const newRowData = await DataTablesCalculationEngine.run({
+                editedField: field,
+                rowData: row.data(),
+                newValue: rowData[field]
             });
 
-            const visited = {};
-            const stack = {};
+            if (!newRowData) return;
 
-            const hasCycle = (node) => {
-                if (!visited[node]) {
-                    visited[node] = true;
-                    stack[node] = true;
+            row.data(newRowData).invalidate();
 
-                    for (const neighbor of (graph[node] || [])) {
-                        if (!visited[neighbor] && hasCycle(neighbor)) {
-                            return true;
-                        } else if (stack[neighbor]) {
-                            return true;
-                        }
-                    }
-                }
-                stack[node] = false;
-                return false;
-            };
-
-            for (const field in graph) {
-                if (hasCycle(field)) {
-                    console.error("Circular dependency detected in calculation:", field);
-                    alert("Circular calculation detected. Please fix field configuration.");
-                }
-            }
-
-            console.log("Dependency graph validated. No circular reference.");
-        },
-
-        triggerCalculate: function (field, rowIndex, rowData) {
-            const targets = this.fieldCalculateMap[field];
-            const activeSection = rowData.activeSectionId;
-            if (targets && Array.isArray(targets) && targets.length > 0) {
-                let targetsToProcess = [];
-
-                if (targets.length === 1) {
-                    targetsToProcess = targets;
-                } else {
-                    targetsToProcess = targets.filter(targetKey => {
-                        if (!activeSection) return !targetKey.includes(".");
-
-                        return targetKey.startsWith(activeSection + ".") || !targetKey.includes(".");
-                    });
-                }
-
-                targetsToProcess.forEach(targetKey => {
-                    const fieldId = this._getCleanFieldId(targetKey);
-
-                    if(this.FIELD_DATA && !Object.hasOwn(this.FIELD_DATA, fieldId)) {
-                        rowData[fieldId] = 0;
-                        return;
-                    }
-
-                    this.handleCalculation(targetKey, rowIndex, rowData);
-                });
-            }
-        },
-
-        handleCalculation: function (compositeKey, rowIndex, rowData) {
-            const meta = this.FIELD_META[compositeKey]
-            if (!meta || !meta.calculationLoadBinder) return;
-
-            const calc = meta.calculationLoadBinder;
-            if (calc.useJsEquation === "true" || calc.useJsEquation === true) {
-                this.calculateFieldLocal(compositeKey, rowIndex, rowData);
-            } else {
-                this.calculateFieldRemote(compositeKey, rowIndex, rowData);
-            }
-        },
-
-        calculateFieldLocal: function (compositeKey, rowIndex, rowData) {
-            const self = this;
-            const meta = this.getMetaForField(compositeKey, rowData);
-            const calc = meta.calculationLoadBinder;
-            let equation = calc.equation;
-            const variables = calc.variables || [];
-            const fieldId = meta.fieldId || compositeKey.split('.').pop();
-
-            variables.forEach(v => {
-                const rawValue = rowData[v.variableName] || 0;
-                const val = DataTablesFactory.normalizeNumber(rawValue) || 0;
-                const regex = new RegExp("\\b" + v.variableName + "\\b", "g");
-                equation = equation.replace(regex, val);
+            Object.keys(newRowData).forEach(f => {
+                this.syncJsonRow(rowIndex, f, newRowData[f]);
             });
 
-            try {
-                let result = Function('"use strict"; return (' + equation + ')')();
+            const rowNode = row.node();
 
-                if (!isFinite(result) || isNaN(result)) {
-                    result = 0;
-                }
-
-                const roundCfg = calc.roundNumber;
-                if (roundCfg && (roundCfg.isRoundNumber === "true" || roundCfg.isRoundNumber === true)) {
-                    result = this.applyAdvancedRounding(result, roundCfg);
-                }
-
-                rowData[fieldId] = result;
-                self.syncJsonRow(rowIndex, fieldId, result);
-
-                const rowNode = self.table.row(rowIndex).node();
-                const $cell = $(rowNode).find(`td[data-field="${fieldId}"]`);
-
-                if ($cell.length > 0 && !$cell.hasClass('editing')) {
-                    self.applyValueToCell($cell, result, meta);
-                }
-
-                self.triggerCalculate(fieldId, rowIndex, rowData);
-
-            } catch (e) {
-                console.error("Local Calculation Error [" + compositeKey + "]: ", e);
-            }
-        },
-
-        calculateFieldRemote: function (compositeKey, rowIndex, rowData) {
-            const self = this;
-            const meta = this.getMetaForField(compositeKey, rowData);
-            const calc = meta?.calculationLoadBinder;
-            if (!calc) return;
-
-            const fieldId = meta.fieldId || compositeKey.split('.').pop();
-            const params = {};
-            
-            calc.variables.forEach(v => {
-                params[v.variableName] = DataTablesFactory.normalizeNumber(rowData[v.variableName]);
-            });
-
-            $.ajax({
-                url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
-                type: 'POST',
-                contentType: 'application/json',
-                data: JSON.stringify({
-                    formDefId: this.formDefId,
-                    fieldId: fieldId,
-                    primaryKey: rowData.id || 'id',
-                    requestParams: params
-                }),
-                success: function (res) {
-                    if (res?.value == null) return;
-
-                    rowData[fieldId] = res.value;
-                    self.syncJsonRow(rowIndex, fieldId, res.value);
-
-                    const rowNode = self.table.row(rowIndex).node();
-                    const $cell = $(rowNode).find(`td[data-field="${fieldId}"]`);
-
-                    if ($cell.length > 0 && !$cell.hasClass('editing')) {
-                        self.applyValueToCell($cell, res.value, meta);
-                    }
-
-                    self.triggerCalculate(fieldId, rowIndex, rowData);
+            Object.keys(newRowData).forEach(f => {
+                const $cell = $(rowNode).find(`td[data-field="${f}"]`);
+                if ($cell.length && !$cell.hasClass('editing')) {
+                    const meta = DataTablesFactory.getMetaForField(f, newRowData, this.FIELD_META);
+                    this.applyValueToCell($cell, newRowData[f], meta);
                 }
             });
-        },
-
-        applyAdvancedRounding: function (value, cfg) {
-            const decimals = parseInt(cfg.decimalPlaces || 0);
-            const factor = Math.pow(10, decimals);
-            
-            const tempValue = value * factor;
-            let rounded;
-
-            switch (cfg.roundingMode) {
-                case "round_down":
-                    rounded = Math.floor(tempValue);
-                    break;
-                    
-                case "round_up":
-                    rounded = Math.ceil(tempValue);
-                    break;
-                    
-                case "round_half_up":
-                    rounded = Math.round((tempValue + Number.EPSILON) * 100) / 100;
-                    rounded = Math.round(tempValue);
-                    break;
-
-                default:
-                    rounded = tempValue;
-                    break;
-            }
-
-            return rounded / factor;
         },
 
         /* ================= AUTOFILL ================= */
         triggerAutofill: function (field, rowIndex, value, rowData) {
             const activeSection = rowData.activeSectionId;
-            const compositeKey = activeSection ? `${activeSection}.${field}` : field;
-            const meta = this.getMetaForField(field, rowData);
+            const meta = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META);
             const autofill = meta?.autofillLoadBinder;
             if (!autofill || value == null || value === '') return;
 
@@ -654,7 +463,7 @@
 
         updateRowCount: function () { $('#rowCount').val(this.table.rows().count()); },
 
-        _focusNextCell: function ($currentTd, reverse) {
+        focusNextCell: function ($currentTd, reverse) {
             const self = this;
             const $row = $currentTd.closest('tr');
             const $allCells = $row.find('td');
@@ -689,7 +498,7 @@
                 let $ta = $row.find(`textarea[name*="_jsonrow_"]`);
                 const rowData = self.table.row($row).data();
                 if ($ta.length === 0) {
-                    self._appendJsonRowMarkup($row, newIndex, rowData);
+                    self.appendJsonRowMarkup($row, newIndex, rowData);
                 } else {
                     $ta.attr('name', `${self.elementParamName}_jsonrow_${newIndex}`);
                 }
@@ -741,22 +550,6 @@
             }
             self.table.on('draw.dt', () => evaluateEmpty());
             setTimeout(() => evaluateEmpty(), 0);
-        },
-
-        _getCleanFieldId: function(targetKey) {
-            if (!targetKey.includes(".")) return targetKey;
-
-            const sections = Object.values(this.FIELD_META)
-                .filter(m => m.type === 'section')
-                .map(m => m.id);
-
-            for (const sectionId of sections) {
-                if (targetKey.startsWith(sectionId + ".")) {
-                    return targetKey.substring(sectionId.length + 1);
-                }
-            }
-
-            return targetKey.split('.').slice(1).join('.');
         }
     };
 })();
