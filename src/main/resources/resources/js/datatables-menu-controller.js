@@ -117,9 +117,7 @@
 
         /* ================= EVENTS ================= */
         bindEvents: function() {
-            const $body = $('body');
             const $table = $('#inlineTable');
-            const self = this;
 
             // Cell interaction
             $table.find('tbody')
@@ -173,7 +171,7 @@
                 const meta = $cell.data('meta');
 
                 if (meta?.autofillLoadBinder && meta.type === 'select') {
-                    this.handleAutofill($cell, $editor.val(), meta);
+                    this.triggerAutofill($cell, $editor.val(), meta);
                 }
             });
         },
@@ -243,12 +241,21 @@
             const body = {
                 id: id
             };
-            Object.keys(this.FIELD_META).forEach(field => {
+            Object.keys(rowData).forEach(field => {
+                debugger;
+                const meta = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META);
+                if (!meta) return;
+
+                if (meta.type === 'file') return;
+
                 const fieldId = DataTablesFactory.getCleanFieldId(field, this.FIELD_META);
-                if (rowData[fieldId] != null) {
-                    const m = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META) || {};
-                    body[fieldId] = (m.type === 'date') ? DataTablesFactory.ensureDateString(rowData[fieldId]) : rowData[fieldId];
-                }
+                const value = rowData[field];
+
+                if (value == null) return;
+
+                body[fieldId] = (meta.type === 'date')
+                    ? DataTablesFactory.ensureDateString(value)
+                    : value;
             });
 
             $.ajax({
@@ -362,24 +369,42 @@
         openAddForm: function() {
             if (!this.createFormDefId) return;
 
-            const args = {
-                frameId: 'Frame_' + this.createFormDefId
-            };
-            const formUrl = this.BASE_URL + this.ADD_FORM_URL + UI.userviewThemeParams();
+            const frameId = 'formPopup_' + this.createFormDefId;
+
+            if (window.JPopup) {
+                JPopup.create(
+                    frameId,
+                    "Add Data",
+                    "80%",
+                    "80%"
+                );
+            }
+
+            let url = this.BASE_URL + this.ADD_FORM_URL;
+
+            if (typeof UI !== "undefined" && typeof UI.userviewThemeParams === "function") {
+                url += UI.userviewThemeParams();
+            } else if (window.ConnectionManager && window.ConnectionManager.tokenName) {
+                url +=
+                    "&" +
+                    window.ConnectionManager.tokenName +
+                    "=" +
+                    window.ConnectionManager.tokenValue;
+            }
             const params = {
                 _json: this.jsonForm,
                 _callback: 'DataTablesMenuController.onSubmitted',
-                _setting: JSON.stringify(args).replace(/"/g, "'"),
-                _jsonrow: JSON.stringify({}),
-                _nonce: this.nonce
+                _nonce: this.nonce,
+                _setting: "{}"
             };
 
-            JPopup.show(args.frameId, formUrl, params, '', 900, 800);
+            JPopup.show(frameId, url, params, '', 900, 800);
         },
 
         onSubmitted: function(args) {
+            const frameId = 'formPopup_' + this.createFormDefId;
             try {
-                JPopup.hide(args.frameId);
+                JPopup.hide(frameId);
             } catch (e) {}
             if (this.table) this.table.ajax.reload(null, false);
             showToast('Data added successfully', 'success');
@@ -431,7 +456,7 @@
 
             const newRowData = await DataTablesCalculationEngine.run({
                 editedField: editedField,
-                rowData: structuredClone(row.data()),
+                rowData: structuredClone(this.calculatedRowData ?? row.data()),
                 newValue: newValue
             });
 
@@ -489,15 +514,13 @@
             return $cell.length ? $cell : null;
         },
 
-        handleAutofill: function($cell, selectedValue, meta) {
+        triggerAutofill: function($cell, selectedValue, meta) {
             const autofill = meta.autofillLoadBinder;
             if (!autofill) return;
 
-            const serviceUrl = autofill.serviceUrl;
-            if (!serviceUrl) return;
-
             const $row = this.table.row($cell.closest('tr'));
             const rowData = structuredClone($row.data());
+            rowData[$cell.data('field')] = selectedValue;
 
             const payload = {
                 appId: this.jsonForm?.properties?.appId,
@@ -510,7 +533,7 @@
             };
 
             $.ajax({
-                url: serviceUrl,
+                url: autofill.serviceUrl,
                 type: 'POST',
                 contentType: 'application/json',
                 data: JSON.stringify(payload),
@@ -524,7 +547,7 @@
                         if (!(sourceKey in res)) return;
 
                         const value = res[sourceKey];
-                        const targetMeta = this.FIELD_META[targetField];
+                        const targetMeta = DataTablesFactory.getMetaForField(targetField, rowData, this.FIELD_META);
                         if (!targetMeta) return;
 
                         rowData[targetField] = value;
@@ -535,7 +558,8 @@
                         }
                     });
 
-                    $row.data(rowData).invalidate();
+                    this.calculatedRowData = rowData;
+
                 },
                 error: (err) => {
                     console.error('Autofill failed', err);
