@@ -23,20 +23,22 @@
             <input type="hidden" id="elementParamName" name="elementParamName" value="${elementParamName!}_jsonrow_">
             <input type="hidden" id="rowCount" name="rowCount" value="0">
 
-            <table id="${elementId}" class="display" style="width:100%">
-                <thead>
-                <tr>
-                    <#list element.properties.options![] as col>
-                        <th style="text-align:${col.alignment!'left'};<#if col.width??>width:${col.width};</#if>">
-                            ${col.label!}
-                        </th>
-                    </#list>
-                        <th></th>
+            <div class="table-responsive">
+                <table id="${elementId}" class="display" style="width:100%">
+                    <thead>
+                    <tr>
+                        <#list element.properties.options![] as col>
+                            <th style="text-align:${col.alignment!'left'};<#if col.width??>width:${col.width};</#if>">
+                                ${col.label!}
+                            </th>
+                        </#list>
+                            <th></th>
 
-                </tr>
-                </thead>
-                <tbody></tbody>
-            </table>
+                    </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
 
             <div class="dt-toolbar">
                 <span class="dt-add-row"><i class="fa fa-plus-circle"></i></span>

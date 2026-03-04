@@ -168,3 +168,16 @@ td:hover .dt-row-delete {
     opacity: 1;
 }
 
+/* Wrapper untuk memunculkan horizontal scrollbar */
+.table-responsive {
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch; /* Biar smooth scroll di mobile/touchpad */
+    padding-bottom: 5px; /* Memberi sedikit ruang antara scrollbar dan tombol Add */
+}
+
+/* Mencegah teks di dalam tabel memotong/turun ke bawah sehingga tabel bisa melebar ke samping */
+.datatable-card table.dataTable th,
+.datatable-card table.dataTable td {
+    white-space: nowrap;
+}
