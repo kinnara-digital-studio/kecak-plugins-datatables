@@ -447,6 +447,26 @@
             }
 
             return targetKey.split('.').slice(1).join('.');
+        },
+
+        whitelistSection: function(compositeKey, fieldMeta) {
+            if (!compositeKey.includes(".")) return targetKey;
+
+            if (!fieldMeta) return null;
+
+            const fieldSection = compositeKey.split('.')[0];
+            const sections = Object.values(fieldMeta).filter(m => m.type === 'section');
+            let isWhitelist = false;
+
+            sections.forEach(section => {
+                if (section.id === fieldSection){
+                    if (!section.visibilityControl || !section.visibilityValue) {
+                        isWhitelist = true;
+                    };
+                }
+            });
+
+            return isWhitelist;
         }
     };
 })();

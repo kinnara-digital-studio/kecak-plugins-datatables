@@ -43,12 +43,28 @@
             while (queue.length > 0) {
 
                 const fieldKey = queue.shift();
+
+                const isWhitelistSection = DataTablesFactory.whitelistSection(fieldKey, this.FIELD_META);
+                console.log("Whitelist Run Section: " + isWhitelistSection);
+
+                let sectionKey = newRowData.activeSectionId;
+
+                if (fieldKey.includes(".")) {
+                    sectionKey = fieldKey.split('.')[0];
+                }
+
+                if (!isWhitelistSection && sectionKey !== newRowData.activeSectionId) {
+                    visited.add(fieldKey);
+                }
+
                 if (visited.has(fieldKey)) continue;
                 visited.add(fieldKey);
 
                 const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
 
                 const result = await this.computeField(fieldKey, newRowData, token);
+
+                console.log("Field ID: " + fieldId + ", Result: " + result);
 
                 if (token !== this.calcToken) return null;
 
@@ -81,10 +97,11 @@
 
         /* ================= COMPUTATION ================= */
         async computeField(fieldKey, rowData, token) {
+            console.log("Section: " + fieldKey);
 
             const meta = this.FIELD_META[fieldKey];
             if (!meta?.calculationLoadBinder) {
-                const fieldId = this.cleanFieldId(fieldKey);
+                const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
                 return rowData[fieldId] || 0;
             }
 
@@ -101,6 +118,8 @@
         computeLocal(calc, rowData) {
 
             let equation = calc.equation;
+
+            console.log("Equation: " + equation);
 
             (calc.variables || []).forEach(v => {
 

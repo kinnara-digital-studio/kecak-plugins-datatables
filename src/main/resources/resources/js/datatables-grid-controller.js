@@ -335,6 +335,7 @@
 
         /* ================= CALCULATION ================= */
         triggerCalculate: async function (field, rowIndex, rowData) {
+            console.log();
 
             const row = this.table.row(rowIndex);
 
