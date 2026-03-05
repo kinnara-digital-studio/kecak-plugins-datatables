@@ -38,7 +38,10 @@
             }
 
             const queue = (this.fieldCalculateMap[editedField] || []).slice();
-            const visited = new Set();
+            // const visited = new Set();
+
+            // GANTI Set visited dengan Object counter untuk deteksi loop
+            const evalCount = {};
 
             while (queue.length > 0) {
 
@@ -53,12 +56,21 @@
                     sectionKey = fieldKey.split('.')[0];
                 }
 
+                // if (!isWhitelistSection && sectionKey !== newRowData.activeSectionId) {
+                //     visited.add(fieldKey);
+                // }
+
+                // SKIP jika tidak masuk kriteria whitelist / active section
                 if (!isWhitelistSection && sectionKey !== newRowData.activeSectionId) {
-                    visited.add(fieldKey);
+                    continue; // Langsung skip, tidak perlu pakai visited.add
                 }
 
-                if (visited.has(fieldKey)) continue;
-                visited.add(fieldKey);
+                // if (visited.has(fieldKey)) continue;
+                // visited.add(fieldKey);
+
+                // CEGAH Infinite Loop (Maksimal 3x evaluasi per cycle untuk 1 field)
+                evalCount[fieldKey] = (evalCount[fieldKey] || 0) + 1;
+                if (evalCount[fieldKey] > 3) continue;
 
                 const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
 
@@ -68,10 +80,22 @@
 
                 if (token !== this.calcToken) return null;
 
+                // CEK APAKAH NILAI BERUBAH DARI SEBELUMNYA
+                const isValueChanged = newRowData[fieldId] !== result;
                 newRowData[fieldId] = result;
 
-                const children = this.fieldCalculateMap[fieldId] || [];
-                queue.push(...children);
+                // const children = this.fieldCalculateMap[fieldId] || [];
+                // queue.push(...children);
+
+                // Re-trigger anak-anaknya HANYA jika nilainya berubah, 
+                // atau jika ini adalah evaluasi pertamanya.
+                if (isValueChanged || evalCount[fieldKey] === 1) {
+                    const children = this.fieldCalculateMap[fieldId] || [];
+                    children.forEach(child => {
+                        // Hindari menumpuk antrean duplikat di saat bersamaan
+                        if (!queue.includes(child)) queue.push(child);
+                    });
+                }
             }
 
             return newRowData;
