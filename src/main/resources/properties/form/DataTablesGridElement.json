@@ -24,6 +24,28 @@
                 "required": "True"
             },
             {
+                "name": "hideAddButton",
+                "label": "Hide Add New Row",
+                "type": "checkbox",
+                "options": [
+                    {
+                        "value": "true",
+                        "label": ""
+                    }
+                ]
+            },
+            {
+                "name": "hideDeleteButton",
+                "label": "Hide Delete Row",
+                "type": "checkbox",
+                "options": [
+                    {
+                        "value": "true",
+                        "label": ""
+                    }
+                ]
+            },
+            {
                 "name": "options",
                 "label": "@@datatableselement.columns@@",
                 "description": "@@datatableselement.columns.desc@@",

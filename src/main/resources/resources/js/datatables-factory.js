@@ -174,7 +174,7 @@
             );
 
             if (this.menuType !== this.MENU_TYPE.INBOX) {
-                cols.push(this.buildDeleteColumn());
+                cols.push(this.buildDeleteColumn(opts));
             } else {
                 cols.push(this.buildWorkflowActionColumn(opts));
             }
@@ -265,14 +265,20 @@
             };
         },
 
-        buildDeleteColumn: () => ({
-            data: null,
-            orderable: false,
-            searchable: false,
-            className: 'dt-action-col',
-            width: '40px',
-            render: () => '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>'
-        }),
+        buildDeleteColumn: function (opts) {
+            return {
+                data: null,
+                orderable: false,
+                searchable: false,
+                className: 'dt-action-col',
+                width: '40px',
+                render: () => {
+                    if (opts.isHideDeleteButton) return '';
+
+                    return '<span class="fa-solid fa-trash dt-row-delete" title="Delete"></span>';
+                }
+            }
+        },
 
         buildWorkflowActionColumn: function (opts) {
             return {

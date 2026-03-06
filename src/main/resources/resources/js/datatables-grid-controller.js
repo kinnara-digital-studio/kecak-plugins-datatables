@@ -24,6 +24,8 @@
         appId: null,
         appVersion: null,
 
+        isHideAddBtn: false,
+
         /* ================= CORE INIT ================= */
         init: function (opts, dataRows) {
             if (!opts || !opts.table) throw new Error('DataTable instance is required');
@@ -44,6 +46,8 @@
 
             this.controlFields = DataTablesFactory.getControlFields(this.FIELD_META);
 
+            this.isHideAddBtn       = opts.isHideAddBtn;
+
             this.buildFieldData();
 
             DataTablesCalculationEngine.init({
@@ -61,6 +65,8 @@
             } else {
                 this.updateRowCount();
             }
+
+            this.configButton();
         },
 
         loadExistingData: function (data) {
@@ -182,6 +188,14 @@
                     }
                 }
             });
+        },
+
+        /* ================= CONFIG BUTTON ================= */
+        configButton: function () {
+            const $btnAdd = $('#btnGridAddRow');
+            if (this.isHideAddBtn) {
+                $btnAdd.remove();
+            }
         },
 
         /* ================= ROW OPERATIONS ================= */

@@ -103,6 +103,11 @@ public class DataTablesGridElement extends Element implements FormBuilderPalette
         LogUtil.warn(getClassName(), "DataTablesGridElement rows [" + rows.toString() + "]");
         dataModel.put("dataRows", rows);
 
+        boolean hideAddButton = getPropertyString("hideAddButton").equalsIgnoreCase("true");
+        dataModel.put("isHideAddBtn", hideAddButton);
+        boolean hideDeleteButton = getPropertyString("hideDeleteButton").equalsIgnoreCase("true");
+        dataModel.put("isHideDeleteBtn", hideDeleteButton);
+
         return FormUtil.generateElementHtml(
                 this,
                 formData,

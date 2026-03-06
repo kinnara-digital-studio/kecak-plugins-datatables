@@ -41,7 +41,7 @@
             </div>
 
             <div class="dt-toolbar">
-                <span class="dt-add-row"><i class="fa fa-plus-circle"></i></span>
+                <span id="btnGridAddRow" class="dt-add-row"><i class="fa fa-plus-circle"></i></span>
             </div>
 
         </div>
@@ -49,6 +49,8 @@
     <script>
         $(function () {
             var FIELD_META = ${fieldMeta};
+            var hideAddBtn = ${isHideAddBtn?string("true","false")};
+            var hideDeleteBtn = ${isHideDeleteBtn?string("true","false")};
             
             var rawDataRows = [
                 <#list dataRows![] as row>
@@ -71,7 +73,8 @@
                 menuType: 'inlineGrid',
                 tableElement: $("#${elementId}"),
                 fieldMeta: FIELD_META,
-                columns: columns
+                columns: columns,
+                isHideDeleteButton: hideDeleteBtn
             });
 
             // 2. Start Controller (Data diolah di sini)
@@ -86,7 +89,8 @@
                 baseUrl: '${request.contextPath}',
                 calculationUrl: '${calculationUrl}',
                 appId: '${appId!}',
-                appVersion: '${appVersion!}'
+                appVersion: '${appVersion!}',
+                isHideAddBtn: hideAddBtn
             }, rawDataRows);
         });
     </script>
