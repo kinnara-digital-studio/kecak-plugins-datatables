@@ -136,6 +136,21 @@
             this.tableEl.find('tbody').off('click', 'td').on('click', 'td', function (e) {
                 self.onCellClick($(this));
             });
+            $(document).on('focusout', '.cell-editor', function () {
+                const $editor = $(this);
+                const $td = $editor.closest('td');
+
+                if ($td.hasClass('editing')) {
+                    const cell = self.table.cell($td);
+                    if (!cell || !cell.index()) return;
+
+                    const idx = cell.index();
+                    const field = self.FIELD_MAP[idx.column];
+
+                    self.commit($td, field, idx.row, $editor.val());
+                    self.editingCell = null;
+                }
+            });
             $(document).on('keydown', '.cell-editor', function (e) {
                 const $editor = $(this);
                 const $td = $editor.closest('td');
