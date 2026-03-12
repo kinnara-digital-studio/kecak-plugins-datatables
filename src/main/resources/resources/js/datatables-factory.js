@@ -337,7 +337,19 @@
             if (num === null) return value;
 
             const fmt = meta.formatter;
+            
+            console.log("Formatter: " + fmt);
+
             if (!fmt) return num;
+
+            if (fmt.className) {
+                if (fmt.className.split('.').pop() === 'PercentageFormatter') {
+                    const props = fmt.properties || {};
+                    const decimals = parseInt(fmt.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
+                    
+                    return (num * 100).toFixed(decimals) + '%';
+                }
+            }
 
             const decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
             const style = fmt.style || 'us';
