@@ -470,7 +470,7 @@
             if (meta.type === 'select') {
                 const option = (meta.options || []).find(o => String(o.value) === String(value));
                 display = option ? option.label : '';
-            } else if (meta.formatter) {
+            } else if (meta.formatter || meta.formatterPlugin) {
                 display = DataTablesFactory.formatNumber(value, meta);
             }
             $cell.attr('data-value', value ?? '').html(display).removeClass('editing');

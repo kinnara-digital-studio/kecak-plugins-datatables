@@ -250,6 +250,7 @@ public class FormMetaBuilder {
 
         /* ===== FORMATTER ===== */
         meta.put("formatter", resolveFormatter(props));
+        meta.put("formatterPlugin", resolveFormatterPlugin(props));
 
         /* ===== CALCULATION ===== */
         meta.put("calculationLoadBinder", resolveCalculationBinder(props, sectionId));
@@ -303,31 +304,33 @@ public class FormMetaBuilder {
      * FORMATTER
      * ========================================================== */
     private Map<String, Object> resolveFormatter(JSONObject props) {
-
-       LogUtil.info(getClass().getName(), "Props: " + props);
-
-       Map<String, Object> formatter = new HashMap<>();
-
-       JSONObject formatterPlugin = props.optJSONObject("formatterPlugin");
-
-       if (formatterPlugin != null && formatterPlugin.length() != 0) {
-           LogUtil.info(getClass().getName(), "Formatter Plugin: " + props.optString("id") + ": " + formatterPlugin.optString("className"));
-
-           formatter.put("className", formatterPlugin.optString("className"));
-          
-           formatter.put("decimalPlaces", props.optString("decimalPlaces", "2"));
-       }
-
         String style = props.optString("style");
         if (Validator.isNullOrEmpty(style)) return null;
 
-        // Map<String, Object> formatter = new HashMap<>();
+        Map<String, Object> formatter = new HashMap<>();
         formatter.put("style", style);
         formatter.put("useThousandSeparator", isTrue(props, "useThousandSeparator"));
         formatter.put("numOfDecimal", props.optString("numOfDecimal"));
+        
         return formatter;
     }
 
+    private Map<String, Object> resolveFormatterPlugin(JSONObject props) {
+        LogUtil.info(getClass().getName(), "Props: " + props);
+
+        Map<String, Object> formatter = new HashMap<>();
+        JSONObject formatterPlugin = props.optJSONObject("formatterPlugin");
+
+        if (formatterPlugin != null && formatterPlugin.length() != 0) {
+            LogUtil.info(getClass().getName(), "Formatter Plugin: " + props.optString("id") + ": " + formatterPlugin.optString("className"));
+
+            formatter.put("className", formatterPlugin.optString("className"));
+            formatter.put("decimalPlaces", props.optString("decimalPlaces", "2"));
+            return formatter;
+        } else {
+            return null;
+        }
+    }
     /* ==========================================================
      * CALCULATION
      * ========================================================== */

@@ -216,7 +216,7 @@
                             return opt ? opt.label : data;
                         }
 
-                        if (meta.formatter) {
+                        if (meta.formatter || meta.formatterPlugin) {
                             return this.formatNumber(data, meta);
                         }
 
@@ -334,33 +334,41 @@
 
         formatNumber: function (value, meta) {
             const num = this.normalizeNumber(value);
+
+            console.log("Num: " + num)
+
             if (num === null) return value;
 
             const fmt = meta.formatter;
-            
-            console.log("Formatter: " + fmt);
+            const fmtPlugin = meta.formatterPlugin;
 
-            if (!fmt) return num;
+            console.log("Formatter Plugin: " + fmtPlugin);
 
-            if (fmt.className) {
-                if (fmt.className.split('.').pop() === 'PercentageFormatter') {
-                    const props = fmt.properties || {};
-                    const decimals = parseInt(fmt.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
-                    
-                    return (num * 100).toFixed(decimals) + '%';
+            if (!fmt && !fmtPlugin) return num;
+
+            if (fmtPlugin != null) {
+                if (fmtPlugin.className) {
+                    if (fmtPlugin.className.split('.').pop() === 'PercentageFormatter') {
+                        const props = fmtPlugin.properties || {};
+                        const decimals = parseInt(fmtPlugin.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
+                        
+                        return parseFloat((num * 100).toFixed(decimals)) + '%';
+                    }
                 }
+            } else if (fmt != null) {
+                const decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
+                const style = fmt.style || 'us';
+
+                const formatter = new Intl.NumberFormat(style === 'euro' ? 'de-DE' : 'en-US', {
+                    minimumFractionDigits: decimals,
+                    maximumFractionDigits: decimals,
+                    useGrouping: fmt.useThousandSeparator !== false
+                });
+
+                return formatter.format(num);
+            } else {
+                return num;
             }
-
-            const decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
-            const style = fmt.style || 'us';
-
-            const formatter = new Intl.NumberFormat(style === 'euro' ? 'de-DE' : 'en-US', {
-                minimumFractionDigits: decimals,
-                maximumFractionDigits: decimals,
-                useGrouping: fmt.useThousandSeparator !== false
-            });
-
-            return formatter.format(num);
         },
 
         ensureDateString: function (value) {
