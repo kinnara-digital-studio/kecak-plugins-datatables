@@ -62,6 +62,7 @@
 
             if (dataRows && dataRows.length > 0) {
                 this.loadExistingData(dataRows);
+                this.triggerAutoCommit();
             } else {
                 this.updateRowCount();
             }
@@ -578,6 +579,32 @@
             }
             self.table.on('draw.dt', () => evaluateEmpty());
             setTimeout(() => evaluateEmpty(), 0);
+        },
+
+        /* ================= AUTO COMMIT (WORKAROUND FORMATTING) ================= */
+        triggerAutoCommit: function () {
+            const self = this;
+            
+            setTimeout(() => {
+                if (!self.table) return;
+
+                self.table.rows().every(function (rowIdx) {
+                    const rowData = this.data();
+                    const rowNode = this.node();
+
+                    self.FIELD_MAP.forEach(field => {
+                        if (!field) return;
+
+                        const $td = $(rowNode).find(`td[data-field="${field}"]`);
+                        
+                        if ($td.length) {
+                            const currentValue = rowData[field];
+                            
+                            self.commit($td, field, rowIdx, currentValue);
+                        }
+                    });
+                });
+            }, 200);
         }
     };
 })();
