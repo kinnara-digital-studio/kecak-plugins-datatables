@@ -203,7 +203,7 @@
                                 const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
                                 if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
                             }else{
-                                compositeKey = activeSection ? `${activeSection}.${col.name}` : col.name;
+                                compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
                             }
                             meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
                         // }
