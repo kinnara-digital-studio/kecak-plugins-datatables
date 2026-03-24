@@ -83,6 +83,12 @@
                     rowData = item;
                 }
 
+                Object.keys(self.FIELD_DATA).forEach(field => {
+                    if (rowData[field] === undefined || rowData[field] === null || rowData[field] === '') {
+                        rowData[field] = self.FIELD_DATA[field];
+                    }
+                });
+
                 if (window.DataTablesFactory && typeof DataTablesFactory.processVisibility === 'function') {
                     rowData.activeSectionId = DataTablesFactory.processVisibility(rowData, self.FIELD_META);
                 }
@@ -122,7 +128,7 @@
                 const meta = this.FIELD_META[key];
                 if(meta.type !== 'section'){
                     const fieldId = DataTablesFactory.getCleanFieldId(key, this.FIELD_META);
-                    this.FIELD_DATA[fieldId] = '';
+                    this.FIELD_DATA[fieldId] = (meta.defaultValue !== undefined && meta.defaultValue !== null && meta.defaultValue !== '') ? meta.defaultValue : '';
                 }
             });
         },
@@ -221,7 +227,7 @@
             };
 
             Object.keys(this.FIELD_DATA).forEach(field => {
-                 emptyData[field] = '';
+                emptyData[field] = this.FIELD_DATA[field];
             });
 
             const rowCount = this.table.rows().count();

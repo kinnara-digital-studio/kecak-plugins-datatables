@@ -236,6 +236,7 @@ public class FormMetaBuilder {
         meta.put("className", className);
         meta.put("readonly", isTrue(props, "readonly"));
         meta.put("isHidden", isTrue(props, "hidden"));
+        meta.put("defaultValue", props.optString("value"));
 
         boolean mandatory = isMandatory(props);
         boolean numeric   = isNumericValidator(props);
