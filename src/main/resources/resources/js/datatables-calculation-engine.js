@@ -68,7 +68,7 @@
                 // if (visited.has(fieldKey)) continue;
                 // visited.add(fieldKey);
 
-                // CEGAH Infinite Loop (Maksimal 3x evaluasi per cycle untuk 1 field)
+                // CEGAH Infinite Loop (Maksimal 10x evaluasi per cycle untuk 1 field)
                 evalCount[fieldKey] = (evalCount[fieldKey] || 0) + 1;
                 if (evalCount[fieldKey] > 10) {
                     console.warn(`[Calculation Engine] Loop breaker triggered! Field ${fieldKey} dievaluasi lebih dari 10 kali dalam 1 siklus. Kalkulasi dihentikan untuk field ini.`);
