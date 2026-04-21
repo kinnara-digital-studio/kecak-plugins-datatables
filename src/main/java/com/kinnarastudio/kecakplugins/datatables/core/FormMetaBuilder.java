@@ -317,13 +317,13 @@ public class FormMetaBuilder {
     }
 
     private Map<String, Object> resolveFormatterPlugin(JSONObject props) {
-        LogUtil.info(getClass().getName(), "Props: " + props);
+        // LogUtil.info(getClass().getName(), "Props: " + props);
 
         Map<String, Object> formatter = new HashMap<>();
         JSONObject formatterPlugin = props.optJSONObject("formatterPlugin");
 
         if (formatterPlugin != null && formatterPlugin.length() != 0) {
-            LogUtil.info(getClass().getName(), "Formatter Plugin: " + props.optString("id") + ": " + formatterPlugin.optString("className"));
+            // LogUtil.info(getClass().getName(), "Formatter Plugin: " + props.optString("id") + ": " + formatterPlugin.optString("className"));
 
             formatter.put("className", formatterPlugin.optString("className"));
             formatter.put("decimalPlaces", props.optString("decimalPlaces", "2"));
@@ -530,12 +530,12 @@ public class FormMetaBuilder {
 
     private JSONArray getElementOptions(JSONObject element, String fieldId) throws Exception {
         final Element el = FormUtil.findAndParseElementFromJsonObject(element, fieldId);
-        LogUtil.warn(FormMetaBuilder.class.getName(), "DataTablesGridElement fieldMeta select element [" + el.toString() + "]");
+        // LogUtil.warn(FormMetaBuilder.class.getName(), "DataTablesGridElement fieldMeta select element [" + el.toString() + "]");
         final FormData formData = getFormService().executeFormOptionsBinders(el, new FormData());
         final Collection<FormRow> optionMap = FormUtil.getElementPropertyOptionsMap(el, formData);
         return optionMap.stream()
                 .map(row -> {
-                    LogUtil.warn(FormMetaBuilder.class.getName(), "DataTablesGridElement fieldMeta select element row [" + row.toString() + "]");
+                    // LogUtil.warn(FormMetaBuilder.class.getName(), "DataTablesGridElement fieldMeta select element row [" + row.toString() + "]");
                     JSONObject o = new JSONObject();
                     try {
                         o.put("value", row.getProperty("value"));

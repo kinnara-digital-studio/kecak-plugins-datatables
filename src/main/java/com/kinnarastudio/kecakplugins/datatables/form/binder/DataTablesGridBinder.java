@@ -1,13 +1,33 @@
 package com.kinnarastudio.kecakplugins.datatables.form.binder;
 
-import com.kinnarastudio.kecakplugins.datatables.form.biz.DataTablesGridBinderBiz;
-import com.kinnarastudio.kecakplugins.datatables.util.Validator;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.ResourceBundle;
+
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.service.AppService;
 import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.form.dao.FormDataDao;
 import org.joget.apps.form.lib.HiddenField;
-import org.joget.apps.form.model.*;
+import org.joget.apps.form.model.Element;
+import org.joget.apps.form.model.Form;
+import org.joget.apps.form.model.FormBinder;
+import org.joget.apps.form.model.FormData;
+import org.joget.apps.form.model.FormDataDeletableBinder;
+import org.joget.apps.form.model.FormLoadBinder;
+import org.joget.apps.form.model.FormLoadMultiRowElementBinder;
+import org.joget.apps.form.model.FormRow;
+import org.joget.apps.form.model.FormRowSet;
+import org.joget.apps.form.model.FormStoreBinder;
+import org.joget.apps.form.model.FormStoreMultiRowElementBinder;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
@@ -18,11 +38,8 @@ import org.json.JSONObject;
 import org.kecak.apps.exception.ApiException;
 import org.springframework.beans.BeansException;
 
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.*;
+import com.kinnarastudio.kecakplugins.datatables.form.biz.DataTablesGridBinderBiz;
+import com.kinnarastudio.kecakplugins.datatables.util.Validator;
 
 /**
  * DataTables Grid Binder (For DataTablesGridElement)
@@ -67,7 +84,7 @@ public class DataTablesGridBinder extends FormBinder
 
     @Override
     public FormRowSet load(Element element, String primaryKey, FormData formData) {
-        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load primaryKey [" + primaryKey + "]");
+        // // LogUtil.warn(getClassName(), "Execute DataTablesBinder Load primaryKey [" + primaryKey + "]");
         AppDefinition appDef = AppUtil.getCurrentAppDefinition();
         FormRowSet rows = new FormRowSet();
         Form form = dataTablesBinderBiz().getSelectedForm(getFormId());
@@ -82,12 +99,12 @@ public class DataTablesGridBinder extends FormBinder
                     for (Object o : (Object[]) getProperty("extraCondition")) {
                         Map<String, String> row = (Map<String, String>) o;
                         String extraKey = row.get("key");
-                        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKey [" + extraKey + "]");
+                        // LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKey [" + extraKey + "]");
                         if ((extraKey!= null || !extraKey.isEmpty())) {
                             condition.append(" AND ").append(dataTablesBinderBiz().getFormPropertyName(form, extraKey)).append(" = ? ");
                         }
                         String extraKeyValue = dataTablesBinderBiz().getKeyValue(formData, element, extraKey);
-                        LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKeyValue [" + extraKeyValue + "]");
+                        // LogUtil.warn(getClassName(), "Execute DataTablesBinder Load extraKeyValue [" + extraKeyValue + "]");
                         if ((extraKeyValue != null || !extraKeyValue.isEmpty())) {
                             paramsArray.add(AppUtil.processHashVariable(extraKeyValue.trim(), null, null, null, appDef));
                         }
@@ -105,13 +122,13 @@ public class DataTablesGridBinder extends FormBinder
 
     @Override
     public FormRowSet store(Element element, FormRowSet formRowSet, FormData formData) {
-        LogUtil.warn(getClassName(), "Execute DataTablesBinder [" + getFormId() + "]");
-        LogUtil.warn(getClassName(), "DataTablesBinder ELEMENT [" + element.toString() + "]");
-        LogUtil.warn(getClassName(), "DataTablesBinder FormData getRequestParams [" + formData.getRequestParams().toString() + "]");
-        LogUtil.warn(getClassName(), "DataTablesBinder formRowSet initialRequest [" + formRowSet.toString() + "]");
+        // LogUtil.warn(getClassName(), "Execute DataTablesBinder [" + getFormId() + "]");
+        // LogUtil.warn(getClassName(), "DataTablesBinder ELEMENT [" + element.toString() + "]");
+        // LogUtil.warn(getClassName(), "DataTablesBinder FormData getRequestParams [" + formData.getRequestParams().toString() + "]");
+        // LogUtil.warn(getClassName(), "DataTablesBinder formRowSet initialRequest [" + formRowSet.toString() + "]");
 
         String elementParamName = formData.getRequestParameter("elementParamName");
-        LogUtil.warn(getClassName(), "DataTablesBinder FormData elementParamName [" + elementParamName + "]");
+        // LogUtil.warn(getClassName(), "DataTablesBinder FormData elementParamName [" + elementParamName + "]");
         FormRowSet rows = new FormRowSet();
         if (Validator.isNotNullOrEmpty(elementParamName)){
             FormDataDao formDataDao = (FormDataDao) FormUtil.getApplicationContext().getBean("formDataDao");
@@ -160,9 +177,9 @@ public class DataTablesGridBinder extends FormBinder
                 for (FormRow row : rows) {
                     row.put(this.getPropertyString("foreignKey"), primaryKeyValue);
                 }
-                LogUtil.warn(getClassName(), "DataTablesBinder FormData rowSet check step 1 [" + rows.toString() + "]");
+                // LogUtil.warn(getClassName(), "DataTablesBinder FormData rowSet check step 1 [" + rows.toString() + "]");
                 formRowSet = appService.storeFormData(form, rows, null);
-                LogUtil.warn(getClassName(), "DataTablesBinder FormData rowSet .storeFormData step 2 [" + formRowSet.toString() + "]");
+                // LogUtil.warn(getClassName(), "DataTablesBinder FormData rowSet .storeFormData step 2 [" + formRowSet.toString() + "]");
             }
         }
         return formRowSet;

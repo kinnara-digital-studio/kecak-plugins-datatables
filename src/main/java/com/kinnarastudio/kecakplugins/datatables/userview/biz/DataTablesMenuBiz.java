@@ -1,10 +1,16 @@
 package com.kinnarastudio.kecakplugins.datatables.userview.biz;
 
-import com.kinnarastudio.commons.Try;
-import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
-import com.kinnarastudio.kecakplugins.datatables.util.DataTablesUtil;
-import com.kinnarastudio.kecakplugins.datatables.util.Validator;
-import com.kinnarastudio.kecakplugins.datatables.util.enums.FormElementType;
+import java.math.BigDecimal;
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.stream.Stream;
+
+import javax.servlet.http.HttpServletResponse;
+
 import org.joget.apps.app.dao.DatalistDefinitionDao;
 import org.joget.apps.app.dao.FormDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
@@ -14,7 +20,11 @@ import org.joget.apps.app.service.AppUtil;
 import org.joget.apps.datalist.model.DataList;
 import org.joget.apps.datalist.model.DataListColumnFormatDefault;
 import org.joget.apps.datalist.service.DataListService;
-import org.joget.apps.form.model.*;
+import org.joget.apps.form.model.Element;
+import org.joget.apps.form.model.Form;
+import org.joget.apps.form.model.FormData;
+import org.joget.apps.form.model.FormLoadBinder;
+import org.joget.apps.form.model.FormRowSet;
 import org.joget.apps.form.service.FormService;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.apps.userview.model.UserviewMenu;
@@ -24,15 +34,13 @@ import org.joget.commons.util.SecurityUtil;
 import org.joget.directory.model.User;
 import org.joget.plugin.base.PluginManager;
 import org.joget.workflow.model.service.WorkflowUserManager;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.springframework.context.ApplicationContext;
 
-import javax.servlet.http.HttpServletResponse;
-import java.math.BigDecimal;
-import java.util.*;
-import java.util.stream.Stream;
+import com.kinnarastudio.commons.Try;
+import com.kinnarastudio.kecakplugins.datatables.exception.RestApiException;
+import com.kinnarastudio.kecakplugins.datatables.util.DataTablesUtil;
 
 public class DataTablesMenuBiz {
     private String getClassName() {
@@ -64,13 +72,13 @@ public class DataTablesMenuBiz {
         AppDefinition appDefinition = AppUtil.getCurrentAppDefinition();
         DatalistDefinition datalistDefinition = datalistDefinitionDao.loadById(dataListId, appDefinition);
         if (datalistDefinition == null) {
-            LogUtil.warn(this.getClassName(), "DataList Definition [" + dataListId + "] not found");
+            // LogUtil.warn(this.getClassName(), "DataList Definition [" + dataListId + "] not found");
             return null;
         }
 
         DataList dataList = dataListService.fromJson(datalistDefinition.getJson());
         if (dataList == null) {
-            LogUtil.warn(this.getClassName(), "DataList [" + dataListId + "] not found");
+            // LogUtil.warn(this.getClassName(), "DataList [" + dataListId + "] not found");
             return null;
         }
 
@@ -178,7 +186,7 @@ public class DataTablesMenuBiz {
         }
 
         JSONObject requestParameters = body.optJSONObject("requestParams");
-        LogUtil.info(getClassName(), "requestParameters value : " + requestParameters.toString());
+        // LogUtil.info(getClassName(), "requestParameters value : " + requestParameters.toString());
         FormData formData = this.generateFormData(primaryKey, requestParameters);
 
         Element element = FormUtil.findElement(fieldId, form, formData);

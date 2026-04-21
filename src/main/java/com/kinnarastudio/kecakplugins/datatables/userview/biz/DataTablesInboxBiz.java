@@ -1,6 +1,15 @@
 package com.kinnarastudio.kecakplugins.datatables.userview.biz;
 
-import com.kinnarastudio.kecakplugins.datatables.util.Validator;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
+
 import org.joget.apps.app.dao.DatalistDefinitionDao;
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.model.DatalistDefinition;
@@ -11,15 +20,13 @@ import org.joget.apps.datalist.model.DataListCollection;
 import org.joget.apps.datalist.model.DataListColumn;
 import org.joget.apps.datalist.model.DataListFilterQueryObject;
 import org.joget.apps.datalist.service.DataListService;
-import org.joget.commons.util.LogUtil;
 import org.joget.workflow.model.WorkflowAssignment;
 import org.joget.workflow.model.WorkflowProcess;
 import org.joget.workflow.model.dao.WorkflowProcessLinkDao;
 import org.joget.workflow.model.service.WorkflowManager;
 import org.springframework.context.ApplicationContext;
 
-import java.util.*;
-import java.util.stream.Collectors;
+import com.kinnarastudio.kecakplugins.datatables.util.Validator;
 
 public class DataTablesInboxBiz {
     private volatile Map<String, List<WorkflowAssignment>> cachedAssignments;
@@ -35,7 +42,7 @@ public class DataTablesInboxBiz {
 
     public DataList getDataListColumns(String dataListId, AppDefinition appDef) {
         if (Validator.isNullOrEmpty(dataListId) || Validator.isNullOrEmpty(appDef)) {
-            LogUtil.warn(getClassName(), "Empty datalistId / Application Definition");
+            // LogUtil.warn(getClassName(), "Empty datalistId / Application Definition");
             return new DataList();
         }
 
@@ -45,7 +52,7 @@ public class DataTablesInboxBiz {
 
         DatalistDefinition def = dao.loadById(dataListId, appDef);
         if (Validator.isNullOrEmpty(def)) {
-            LogUtil.warn(getClassName(), "Empty DatalistDefinition");
+            // LogUtil.warn(getClassName(), "Empty DatalistDefinition");
             return new DataList();
         }
 
@@ -60,7 +67,7 @@ public class DataTablesInboxBiz {
             String dataListId, String assignmentFilter, String processId, String activityDefIds, AppDefinition appDef) {
 
         if (Validator.isNullOrEmpty(dataListId) || Validator.isNullOrEmpty(appDef)) {
-            LogUtil.warn(getClassName(), "Empty datalistId / Application Definition");
+            // LogUtil.warn(getClassName(), "Empty datalistId / Application Definition");
             return new DataListCollection<>();
         }
 
@@ -260,7 +267,7 @@ public class DataTablesInboxBiz {
             Integer size) {
 
         if (Validator.isNullOrEmpty(processId)){
-            LogUtil.warn(getClassName(), "Empty processId");
+            // LogUtil.warn(getClassName(), "Empty processId");
             return Collections.emptyList();
         }
 
@@ -272,7 +279,7 @@ public class DataTablesInboxBiz {
                 );
 
         if (Validator.isNullOrEmpty(process)){
-            LogUtil.warn(getClassName(), "Empty process");
+            // LogUtil.warn(getClassName(), "Empty process");
             return Collections.emptyList();
         }
 
@@ -296,7 +303,7 @@ public class DataTablesInboxBiz {
             Integer size) {
 
         if (Validator.isNullOrEmpty(processId) || Validator.isNullOrEmpty(activityDefIds)) {
-            LogUtil.warn(getClassName(), "Empty processId / activityDefId");
+            // LogUtil.warn(getClassName(), "Empty processId / activityDefId");
             return Collections.emptyList();
         }
 
@@ -308,7 +315,7 @@ public class DataTablesInboxBiz {
                 );
 
         if (Validator.isNullOrEmpty(process)){
-            LogUtil.warn(getClassName(), "Empty process");
+            // LogUtil.warn(getClassName(), "Empty process");
             return Collections.emptyList();
         }
 

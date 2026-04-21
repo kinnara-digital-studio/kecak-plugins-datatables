@@ -70,7 +70,10 @@
 
                 // CEGAH Infinite Loop (Maksimal 3x evaluasi per cycle untuk 1 field)
                 evalCount[fieldKey] = (evalCount[fieldKey] || 0) + 1;
-                if (evalCount[fieldKey] > 3) continue;
+                if (evalCount[fieldKey] > 10) {
+                    console.warn(`[Calculation Engine] Loop breaker triggered! Field ${fieldKey} dievaluasi lebih dari 10 kali dalam 1 siklus. Kalkulasi dihentikan untuk field ini.`);
+                    continue;
+                }
 
                 const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
 

@@ -107,7 +107,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
 
         String fieldMetaJson = new JSONObject(fieldMeta).toString();
         dataModel.put("fieldMeta", fieldMetaJson);
-        LogUtil.warn(getClassName(), "fieldMetaJson DataTables Menu: (" + fieldMetaJson +")");
+        // LogUtil.warn(getClassName(), "fieldMetaJson DataTables Menu: (" + fieldMetaJson +")");
 
         WorkflowUserManager workflowUserManager = (WorkflowUserManager) appContext.getBean("workflowUserManager");
         final User currentUser = workflowUserManager.getCurrentUser();
@@ -128,7 +128,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
 
             final JSONObject jsonFormCreate = dataTablesMenuBiz().getJsonForm(createFormDefId);
             dataModel.put("jsonForm", jsonFormCreate.toString());
-            LogUtil.warn(getClassName(), "jsonFormCreate: (" + jsonFormCreate +")");
+            // LogUtil.warn(getClassName(), "jsonFormCreate: (" + jsonFormCreate +")");
 
             final String nonce = dataTablesMenuBiz().generateNonce(appDefinition, jsonFormCreate.toString());
             dataModel.put("nonce", nonce);

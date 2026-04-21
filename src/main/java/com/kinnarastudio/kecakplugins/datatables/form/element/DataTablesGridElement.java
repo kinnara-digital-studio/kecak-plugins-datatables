@@ -1,14 +1,28 @@
 package com.kinnarastudio.kecakplugins.datatables.form.element;
 
-import com.kinnarastudio.commons.Declutter;
-import com.kinnarastudio.commons.Try;
-import com.kinnarastudio.commons.jsonstream.JSONStream;
-import com.kinnarastudio.commons.jsonstream.model.JSONObjectEntry;
-import com.kinnarastudio.kecakplugins.datatables.core.FormMetaBuilder;
-import com.kinnarastudio.kecakplugins.datatables.userview.DataTablesMenu;
+import java.io.IOException;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
+import java.util.ResourceBundle;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+
+import javax.annotation.Nonnull;
+import javax.servlet.ServletException;
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
+
 import org.joget.apps.app.model.AppDefinition;
 import org.joget.apps.app.service.AppUtil;
-import org.joget.apps.form.model.*;
+import org.joget.apps.form.model.Element;
+import org.joget.apps.form.model.FormBuilderPaletteElement;
+import org.joget.apps.form.model.FormData;
+import org.joget.apps.form.model.FormRow;
+import org.joget.apps.form.model.FormRowSet;
 import org.joget.apps.form.service.FormUtil;
 import org.joget.commons.util.LogUtil;
 import org.joget.plugin.base.PluginManager;
@@ -17,14 +31,12 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import javax.annotation.Nonnull;
-import javax.servlet.ServletException;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
+import com.kinnarastudio.commons.Declutter;
+import com.kinnarastudio.commons.Try;
+import com.kinnarastudio.commons.jsonstream.JSONStream;
+import com.kinnarastudio.commons.jsonstream.model.JSONObjectEntry;
+import com.kinnarastudio.kecakplugins.datatables.core.FormMetaBuilder;
+import com.kinnarastudio.kecakplugins.datatables.userview.DataTablesMenu;
 
 public class DataTablesGridElement extends Element implements FormBuilderPaletteElement, PluginWebSupport, Declutter {
     private final static String LABEL = "DataTables Grid Element";
@@ -94,13 +106,13 @@ public class DataTablesGridElement extends Element implements FormBuilderPalette
         }
         String fieldMetaJson = new JSONObject(fieldMeta).toString();
         dataModel.put("fieldMeta", fieldMetaJson);
-        LogUtil.warn(getClassName(), "DataTablesGridElement fieldMetaJson [->" + fieldMetaJson + "<-]");
+        // LogUtil.warn(getClassName(), "DataTablesGridElement fieldMetaJson [->" + fieldMetaJson + "<-]");
 
         String calculationUrl = "/web/json/app/" + appId + "/" + appVersion + "/plugin/" + DataTablesMenu.class.getName() + "/service";
         dataModel.put("calculationUrl", calculationUrl);
 
         FormRowSet rows = getRows(formData);
-        LogUtil.warn(getClassName(), "DataTablesGridElement rows [" + rows.toString() + "]");
+        // LogUtil.warn(getClassName(), "DataTablesGridElement rows [" + rows.toString() + "]");
         dataModel.put("dataRows", rows);
 
         boolean hideAddButton = getPropertyString("hideAddButton").equalsIgnoreCase("true");
