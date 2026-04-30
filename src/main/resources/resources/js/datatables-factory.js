@@ -353,6 +353,14 @@
                         const decimals = parseInt(fmtPlugin.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
                         
                         return parseFloat((num * 100).toFixed(decimals)) + '%';
+                    } else if (fmtPlugin.className.split('.').pop() === 'CurrencyFormatter') {
+                        const formatter = new Intl.NumberFormat('id-ID', {
+                            minimumFractionDigits: 0,
+                            maximumFractionDigits: 2,
+                            useGrouping: true
+                        });
+
+                        return formatter.format(num);
                     }
                 }
             } else if (fmt != null) {
