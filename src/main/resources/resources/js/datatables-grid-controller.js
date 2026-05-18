@@ -287,9 +287,15 @@
 
             const field = this.FIELD_MAP[idx.column];
             const rowData = this.table.row(idx.row).data();
-            const meta = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META);
+            const meta = DataTablesFactory.getMetaForField(field, rowData, this.FIELD_META) || {};
 
-            if (!meta || meta.readonly || meta.calculationLoadBinder || meta.isHidden) {
+            let isReadOnly = meta.readonly || meta.calculationLoadBinder || meta.isHidden;
+            const fieldName = (field || '').toLowerCase();
+            if (fieldName === 'margin_roll' || fieldName === 'margin_pcs' || fieldName === 'hj_roll' || fieldName === 'hj_pcs') {
+                isReadOnly = false;
+            }
+
+            if (isReadOnly) {
                 return;
             }
 
@@ -318,7 +324,7 @@
             
             const meta = this.FIELD_META[compositeKey] || 
                         this.FIELD_META[field] || 
-                        Object.values(this.FIELD_META).find(m => m.fieldId === field);
+                        Object.values(this.FIELD_META).find(m => m.fieldId === field) || {};
 
             this.applyValueToCell($td, oldValue, meta);
             this.editingCell = null;
@@ -512,9 +518,15 @@
                     const field = self.FIELD_MAP[idx.column];
                     const rowData = self.table.row(idx.row).data();
                     const compositeKey = rowData.activeSectionId ? `${rowData.activeSectionId}_${field}` : field;
-                    const meta = self.FIELD_META[compositeKey] || self.FIELD_META[field];
+                    const meta = self.FIELD_META[compositeKey] || self.FIELD_META[field] || {};
                     
-                    if (meta && !meta.readonly && !meta.calculationLoadBinder && !meta.isHidden) {
+                    let isReadOnly = meta.readonly || meta.calculationLoadBinder || meta.isHidden;
+                    const fieldName = (field || '').toLowerCase();
+                    if (fieldName === 'margin_roll' || fieldName === 'margin_pcs' || fieldName === 'hj_roll' || fieldName === 'hj_pcs') {
+                        isReadOnly = false;
+                    }
+
+                    if (!isReadOnly) {
                         setTimeout(() => $nextTd.trigger('click'), 50);
                         return;
                     }

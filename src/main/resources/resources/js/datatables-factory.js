@@ -56,7 +56,7 @@
         },
 
         /* ================= CONFIG ================= */
-        _applyStandardConfig: function(dtOpts, opts) {
+        _applyStandardConfig: function (dtOpts, opts) {
             dtOpts.pageLength = 20;
             dtOpts.ajax = this.buildAjax(opts);
             dtOpts.layout = {
@@ -67,7 +67,7 @@
             };
         },
 
-        _applyInlineGridConfig: function(dtOpts, opts) {
+        _applyInlineGridConfig: function (dtOpts, opts) {
             if (opts.data && opts.fieldMeta) {
                 opts.data = opts.data.map(row => {
                     row.activeSectionId = this.processVisibility(row, opts.fieldMeta);
@@ -88,13 +88,13 @@
             };
         },
 
-        _initStandardFeatures: function(table, opts) {
+        _initStandardFeatures: function (table, opts) {
             this.toggleDtInfoPaging(table);
             table.on('draw', () => this.toggleDtInfoPaging(table));
             this.initCustomToolbar(opts);
         },
 
-        _initControlFieldListeners: function(table, opts) {
+        _initControlFieldListeners: function (table, opts) {
             const controlFields = this.getControlFields(opts.fieldMeta);
             const $wrapper = $(table.table().container());
 
@@ -194,18 +194,18 @@
                     if (type === 'display') {
                         let meta = {};
                         // if(menuType === this.MENU_TYPE.INLINE_GRID){
-                            if (!row.activeSectionId && fieldMeta) {
-                                row.activeSectionId = self.processVisibility(row, fieldMeta);
-                            }
-                            const activeSection = row.activeSectionId;
-                            let compositeKey = '';
-                            if(!activeSection){
-                                const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                                if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
-                            }else{
-                                compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
-                            }
-                            meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+                        if (!row.activeSectionId && fieldMeta) {
+                            row.activeSectionId = self.processVisibility(row, fieldMeta);
+                        }
+                        const activeSection = row.activeSectionId;
+                        let compositeKey = '';
+                        if (!activeSection) {
+                            const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                            if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
+                        } else {
+                            compositeKey = activeSection ? `${activeSection}_${col.name}` : col.name;
+                        }
+                        meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
                         // }
                         // else{
                         //     meta = fieldMeta?.[col.name] || {};
@@ -229,28 +229,34 @@
                 },
                 createdCell: (td, cellData, rowData) => {
                     // if(menuType === this.MENU_TYPE.INLINE_GRID){
-                        const activeSection = rowData.activeSectionId;
-                        let compositeKey = '';
-                        if(!activeSection){
-                            const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
-                            if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
-                        }else{
-                            compositeKey = activeSection ? `${activeSection}.${col.name}` : col.name;
-                        }
-                        const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
+                    const activeSection = rowData.activeSectionId;
+                    let compositeKey = '';
+                    if (!activeSection) {
+                        const fallbackMeta = Object.values(fieldMeta).find(m => m.fieldId === col.name && m.type !== 'section');
+                        if (fallbackMeta) compositeKey = fallbackMeta ? fallbackMeta.sectionId + '.' + col.name : col.name;
+                    } else {
+                        compositeKey = activeSection ? `${activeSection}.${col.name}` : col.name;
+                    }
+                    const meta = fieldMeta?.[compositeKey] || fieldMeta?.[col.name] || {};
 
-                        $(td).attr({
-                            'data-id': rowData.id,
-                            'data-field': col.name,
-                            'data-section': activeSection || '',
-                            'data-composite-key': compositeKey,
-                            'data-value': cellData ?? '',
-                            'data-type': meta.type || 'text'
-                        }).toggleClass('readonly', !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden));
+                    let isReadOnly = !!(meta.readonly || meta.calculationLoadBinder || meta.isHidden);
+                    const colName = (col.name || '').toLowerCase();
+                    if (colName === 'margin_roll' || colName === 'margin_pcs' || colName === 'hj_roll' || colName === 'hj_pcs') {
+                        isReadOnly = false;
+                    }
 
-                        if (meta.isHidden) {
-                            $(td).hide();
-                        }
+                    $(td).attr({
+                        'data-id': rowData.id,
+                        'data-field': col.name,
+                        'data-section': activeSection || '',
+                        'data-composite-key': compositeKey,
+                        'data-value': cellData ?? '',
+                        'data-type': meta.type || 'text'
+                    }).toggleClass('readonly', isReadOnly);
+
+                    if (meta.isHidden) {
+                        $(td).hide();
+                    }
                     // }
                     // else{
                     //     const meta = fieldMeta?.[col.name] || {};
@@ -322,8 +328,8 @@
 
             if (hasComma && hasDot) {
                 str = str.lastIndexOf(',') > str.lastIndexOf('.')
-                    ? str.replace(/\./g, '').replace(',', '.') 
-                    : str.replace(/,/g, ''); 
+                    ? str.replace(/\./g, '').replace(',', '.')
+                    : str.replace(/,/g, '');
             } else if (hasComma) {
                 str = str.replace(',', '.');
             }
@@ -351,7 +357,7 @@
                     if (fmtPlugin.className.split('.').pop() === 'PercentageFormatter') {
                         const props = fmtPlugin.properties || {};
                         const decimals = parseInt(fmtPlugin.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
-                        
+
                         return parseFloat((num * 100).toFixed(decimals)) + '%';
                     } else if (fmtPlugin.className.split('.').pop() === 'CurrencyFormatter') {
                         const formatter = new Intl.NumberFormat('id-ID', {
@@ -396,9 +402,9 @@
             const files = String(value).split(';');
             return files.map(rawUrl => {
                 if (!rawUrl) return '';
-                const url   = rawUrl.replace(/\.+$/, '');
+                const url = rawUrl.replace(/\.+$/, '');
                 const lower = url.toLowerCase();
-                const name  = url.split('/').pop();
+                const name = url.split('/').pop();
 
                 if (lower.endsWith('.png') || lower.endsWith('.jpg') || lower.endsWith('.jpeg')) {
                     return `<img src="${rawUrl}" alt="${name}" style="max-width:120px;max-height:120px;display:block;margin-bottom:4px;border-radius:4px;"/>`;
@@ -408,7 +414,7 @@
         },
 
         /* ================= VISIBILITY & SECTION HANDLERS ================= */
-        processVisibility: function(rowData, fieldMeta) {
+        processVisibility: function (rowData, fieldMeta) {
             if (!fieldMeta) return null;
             const sections = Object.values(fieldMeta).filter(m => m.type === 'section');
             let activeSectionId = null;
@@ -418,7 +424,7 @@
 
                 const controls = section.visibilityControl.split(';');
                 const values = section.visibilityValue.split(';');
-                const joins = (section.join || "").split(';'); 
+                const joins = (section.join || "").split(';');
 
                 let isVisible = false;
 
@@ -426,7 +432,7 @@
                     const ctrlField = controls[i];
                     const targetVal = values[i];
                     const currentVal = rowData[ctrlField];
-                    
+
                     const match = String(currentVal) === String(targetVal);
 
                     if (i === 0) {
@@ -443,13 +449,13 @@
             return activeSectionId;
         },
 
-        getControlFields: function(fieldMeta) {
+        getControlFields: function (fieldMeta) {
             if (!fieldMeta) return [];
             const controls = new Set();
             Object.values(fieldMeta).forEach(meta => {
                 if (meta.type === 'section' && meta.visibilityControl) {
                     meta.visibilityControl.split(';').forEach(f => {
-                        if(f) controls.add(f.trim());
+                        if (f) controls.add(f.trim());
                     });
                 }
             });
@@ -463,11 +469,11 @@
             const compositeKey = activeSection ? `${activeSection}.${field}` : field;
 
             return fieldMeta[compositeKey] ||
-                   fieldMeta[field] ||
-                   Object.values(fieldMeta).find(m => m && (m.fieldId === field || m.id === field));
+                fieldMeta[field] ||
+                Object.values(fieldMeta).find(m => m && (m.fieldId === field || m.id === field));
         },
 
-        getCleanFieldId: function(targetKey, fieldMeta) {
+        getCleanFieldId: function (targetKey, fieldMeta) {
             if (!targetKey.includes(".")) return targetKey;
 
             const sections = Object.values(fieldMeta)
@@ -483,7 +489,7 @@
             return targetKey.split('.').slice(1).join('.');
         },
 
-        whitelistSection: function(compositeKey, fieldMeta) {
+        whitelistSection: function (compositeKey, fieldMeta) {
             if (!compositeKey.includes(".")) return targetKey;
 
             if (!fieldMeta) return null;
@@ -493,7 +499,7 @@
             let isWhitelist = false;
 
             sections.forEach(section => {
-                if (section.id === fieldSection){
+                if (section.id === fieldSection) {
                     if (!section.visibilityControl || !section.visibilityValue) {
                         isWhitelist = true;
                     };

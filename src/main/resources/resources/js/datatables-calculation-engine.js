@@ -77,6 +77,13 @@
 
                 const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
 
+                // CEGAH TIMPA MANUAL INPUT & PUTUS CIRCULAR DEPENDENCY
+                // Jika field yang akan dikalkulasi adalah field yang memicu (editedField),
+                // lewati kalkulasi agar nilainya tetap seperti yang diinput user.
+                if (fieldId === editedField) {
+                    continue;
+                }
+
                 const result = await this.computeField(fieldKey, newRowData, token);
 
                 console.log("Field ID: " + fieldId + ", Result: " + result);
@@ -105,7 +112,7 @@
         },
 
         /* ================= INIT FIELD ================= */
-        initFieldCalculateMap: function() {
+        initFieldCalculateMap: function () {
             this.fieldCalculateMap = {};
             Object.keys(this.FIELD_META).forEach(key => {
                 const meta = this.FIELD_META[key];
@@ -274,12 +281,11 @@
 
             for (const field in graph) {
                 if (hasCycle(field)) {
-                    console.error("Circular dependency detected in calculation:", field);
-                    alert("Circular calculation detected. Please fix field configuration.");
+                    console.warn("Circular dependency detected in calculation:", field, " - this is now supported gracefully.");
                 }
             }
 
-            console.log("Dependency graph validated. No circular reference.");
+            console.log("Dependency graph validated.");
         },
 
     };
