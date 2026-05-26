@@ -154,7 +154,16 @@
                     const idx = cell.index();
                     const field = self.FIELD_MAP[idx.column];
 
-                    self.commit($td, field, idx.row, $editor.val());
+                    let val = $editor.val();
+                    const fieldName = (field || '').toLowerCase();
+                    if (fieldName === 'margin_pcs' || fieldName === 'margin_roll') {
+                        let numVal = DataTablesFactory.normalizeNumber(val);
+                        if (numVal !== null && !isNaN(numVal)) {
+                            val = numVal / 100;
+                        }
+                    }
+
+                    self.commit($td, field, idx.row, val);
                     self.editingCell = null;
                 }
             });
@@ -166,7 +175,17 @@
 
                 if (e.key === 'Enter' || e.key === 'Tab') {
                     e.preventDefault();
-                    self.commit($td, field, idx.row, $editor.val());
+                    
+                    let val = $editor.val();
+                    const fieldName = (field || '').toLowerCase();
+                    if (fieldName === 'margin_pcs' || fieldName === 'margin_roll') {
+                        let numVal = DataTablesFactory.normalizeNumber(val);
+                        if (numVal !== null && !isNaN(numVal)) {
+                            val = numVal / 100;
+                        }
+                    }
+
+                    self.commit($td, field, idx.row, val);
                     self.editingCell = null;
                     if (e.key === 'Tab') self.focusNextCell($td, e.shiftKey);
                 }
@@ -184,7 +203,14 @@
 
                 if (self.controlFields.includes(field)) {
                     debugger;
-                    const newValue = $editor.val();
+                    let newValue = $editor.val();
+                    const fieldName = (field || '').toLowerCase();
+                    if (fieldName === 'margin_pcs' || fieldName === 'margin_roll') {
+                        let numVal = DataTablesFactory.normalizeNumber(newValue);
+                        if (numVal !== null && !isNaN(numVal)) {
+                            newValue = numVal / 100;
+                        }
+                    }
                     const rowData = self.table.row(idx.row).data();
 
                     const tempRowData = structuredClone(rowData);
@@ -300,9 +326,16 @@
             }
 
             this.editingCell = $td;
-            const value = rowData[field] ?? '';
+            let value = rowData[field] ?? '';
             
             $td.data('old-value', value).addClass('editing');
+
+            if (value !== '' && (fieldName === 'margin_pcs' || fieldName === 'margin_roll')) {
+                let numVal = DataTablesFactory.normalizeNumber(value);
+                if (numVal !== null && !isNaN(numVal)) {
+                    value = numVal * 100;
+                }
+            }
 
             const $editor = this.buildEditorMarkup(meta.type, value, meta);
             $td.empty().append($editor);
