@@ -111,6 +111,50 @@ public class DataTablesGridBinder extends FormBinder
                     }
                 }
                 rows = formDataDao.find(form, condition.toString(), paramsArray.toArray(), "dateCreated", false, null, null);
+
+                String sortBy = getPropertyString("sortBy");
+                if (sortBy != null && !sortBy.trim().isEmpty()) {
+                    String[] sortFields = sortBy.split(";");
+                    List<String[]> sortConfig = new ArrayList<>();
+                    for (String sortField : sortFields) {
+                        String sf = sortField.trim();
+                        if (!sf.isEmpty()) {
+                            String[] parts = sf.split("\\s+");
+                            String fieldName = parts[0];
+                            String order = parts.length > 1 ? parts[1] : "ASC";
+                            sortConfig.add(new String[]{fieldName, order});
+                        }
+                    }
+
+                    if (!sortConfig.isEmpty() && rows != null && !rows.isEmpty()) {
+                        rows.sort((row1, row2) -> {
+                            for (String[] config : sortConfig) {
+                                String fieldName = config[0];
+                                String order = config[1];
+
+                                String val1 = row1.getProperty(fieldName);
+                                String val2 = row2.getProperty(fieldName);
+
+                                if (val1 == null) val1 = "";
+                                if (val2 == null) val2 = "";
+
+                                int cmp = 0;
+                                try {
+                                    Double d1 = Double.parseDouble(val1);
+                                    Double d2 = Double.parseDouble(val2);
+                                    cmp = d1.compareTo(d2);
+                                } catch (NumberFormatException e) {
+                                    cmp = val1.compareTo(val2);
+                                }
+
+                                if (cmp != 0) {
+                                    return order.equalsIgnoreCase("DESC") ? -cmp : cmp;
+                                }
+                            }
+                            return 0;
+                        });
+                    }
+                }
             } catch (BeansException e) {
                 LogUtil.error(getClassName(), e, e.getMessage());
             }

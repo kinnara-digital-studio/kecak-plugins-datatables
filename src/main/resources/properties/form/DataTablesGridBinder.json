@@ -1,35 +1,41 @@
 [
     {
-        title : 'Data Tables Binder',
-        properties : [
+        "title": "Data Tables Binder",
+        "properties": [
             {
-            	name : 'formDefId',
-            	label : 'Form',
-            	type : 'selectbox',
-            	required : 'true',
-            	options_ajax:'[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options'
+                "name": "formDefId",
+                "label": "Form",
+                "type": "selectbox",
+                "required": "true",
+                "options_ajax": "[CONTEXT_PATH]/web/json/console/app[APP_PATH]/forms/options"
             },
             {
-            	name : 'foreignKey',
-            	label : 'Foreign Key',
-                type : 'selectbox',
-                required : 'true',
-                options_ajax_on_change : 'formDefId',
-                options_ajax : '[CONTEXT_PATH]/web/json/app[APP_PATH]/plugin/%s/service'
+                "name": "foreignKey",
+                "label": "Foreign Key",
+                "type": "selectbox",
+                "required": "true",
+                "options_ajax_on_change": "formDefId",
+                "options_ajax": "[CONTEXT_PATH]/web/json/app[APP_PATH]/plugin/%s/service"
             },
             {
-                name: 'extraCondition',
-                label: 'Extra Parameter Condition',
-                description: 'Extra Key Parameter to Store and Load Data using AND',
-                type: 'grid',
-                columns: [
-                  {
-                    key: 'key',
-                    label: 'Key',
-                    required: 'true'
-                  }
+                "name": "extraCondition",
+                "label": "Extra Parameter Condition",
+                "description": "Extra Key Parameter to Store and Load Data using AND",
+                "type": "grid",
+                "columns": [
+                    {
+                        "key": "key",
+                        "label": "Key",
+                        "required": "true"
+                    }
                 ]
+            },
+            {
+                "name": "sortBy",
+                "label": "Sort By",
+                "type": "textfield",
+                "description": "Sorting by multiple columns, separated using semicolons (;)"
             }
         ]
-	}
+    }
 ]
