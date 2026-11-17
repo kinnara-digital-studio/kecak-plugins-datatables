@@ -123,6 +123,7 @@ public class DataTablesMenuBiz {
         try {
             formData = formService.executeFormLoadBinders(element, formData);
         } catch (Exception e) {
+            LogUtil.error(getClassName(), e, "Error executing form load binders for element [" + (element != null ? element.getPropertyString("id") : "") + "]: " + e.getMessage());
         }
 
         FormRowSet rowSet = formData.getLoadBinderData(element);
@@ -190,6 +191,9 @@ public class DataTablesMenuBiz {
         FormData formData = this.generateFormData(primaryKey, requestParameters);
 
         Element element = FormUtil.findElement(fieldId, form, formData);
+        if (element == null) {
+            throw new RestApiException(HttpServletResponse.SC_BAD_REQUEST, "Element [" + fieldId + "] not found in form [" + formDefId + "]");
+        }
 
         String currencyField = element.getPropertyString("currencyRefField");
         Map<String, Object> calculationLoadBinder = (Map<String, Object>) element.getProperty("calculationLoadBinder");
@@ -208,10 +212,16 @@ public class DataTablesMenuBiz {
             value = DataTablesUtil.determineNumber(body.optString("formatValue"), locale);
         }
 
+        if (value == null) {
+            value = BigDecimal.ZERO;
+        }
+
         Map<String, Object> formatterPlugin = (Map<String, Object>) element.getProperty("formatterPlugin");
         DataListColumnFormatDefault formatter = DataTablesUtil.getPluginObject(formatterPlugin, pluginManager);
         String formattedValue = formatter == null ? value.toString()
                 : DataTablesUtil.reformatValue(fieldId, value.toString(), form, formData, formatter);
+
+        LogUtil.info(getClassName(), "calculationLoadBinder: fieldId [" + fieldId + "], result value [" + value + "], mask_value [" + formattedValue + "]");
 
         JSONObject data = new JSONObject();
         data.put("value", value.toPlainString());

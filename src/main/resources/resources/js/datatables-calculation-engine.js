@@ -107,18 +107,34 @@
         /* ================= INIT FIELD ================= */
         initFieldCalculateMap: function() {
             this.fieldCalculateMap = {};
+            const reservedWords = new Set([
+                "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+                "abs", "ceil", "floor", "round", "sqrt", "cbrt", "exp", "log", "log2", "log10",
+                "pow", "min", "max", "sum", "avg", "count", "true", "false", "pi", "e"
+            ]);
+
             Object.keys(this.FIELD_META).forEach(key => {
                 const meta = this.FIELD_META[key];
                 const calc = meta.calculationLoadBinder;
-                if (calc?.variables) {
-                    calc.variables.forEach(v => {
-                        const varKey = v.variableName;
-                        this.fieldCalculateMap[varKey] = this.fieldCalculateMap[varKey] || [];
-                        if (!this.fieldCalculateMap[varKey].includes(key)) {
-                            this.fieldCalculateMap[varKey].push(key);
+                if (!calc) return;
+
+                let vars = (calc.variables || []).map(v => v.variableName);
+
+                if (vars.length === 0 && calc.equation) {
+                    const matches = calc.equation.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
+                    vars = [...new Set(matches.filter(m => !reservedWords.has(m.toLowerCase())))];
+                }
+
+                vars.forEach(varKey => {
+                    const cleanVarKey = DataTablesFactory.getCleanFieldId(varKey, this.FIELD_META);
+                    [varKey, cleanVarKey].forEach(k => {
+                        if (!k) return;
+                        this.fieldCalculateMap[k] = this.fieldCalculateMap[k] || [];
+                        if (!this.fieldCalculateMap[k].includes(key)) {
+                            this.fieldCalculateMap[k].push(key);
                         }
                     });
-                }
+                });
             });
         },
 
@@ -126,7 +142,8 @@
         async computeField(fieldKey, rowData, token) {
             console.log("Section: " + fieldKey);
 
-            const meta = this.FIELD_META[fieldKey];
+            const meta = this.FIELD_META[fieldKey] || 
+                         Object.values(this.FIELD_META).find(m => m && m.fieldId === fieldKey);
             if (!meta?.calculationLoadBinder) {
                 const fieldId = DataTablesFactory.getCleanFieldId(fieldKey, this.FIELD_META);
                 return rowData[fieldId] || 0;
@@ -138,25 +155,50 @@
                 return this.computeLocal(calc, rowData);
             }
 
-            return this.computeRemote(fieldKey, calc, rowData, token);
+            const remoteResult = await this.computeRemote(fieldKey, calc, rowData, token);
+            if (remoteResult !== null && remoteResult !== undefined && remoteResult !== 0 && remoteResult !== "0") {
+                return remoteResult;
+            }
+
+            // Fallback to local computation if equation is present and remote returned 0/empty
+            if (calc.equation) {
+                const localResult = this.computeLocal(calc, rowData);
+                if (localResult !== 0) {
+                    return localResult;
+                }
+            }
+
+            return remoteResult || 0;
         },
 
         /* ================= LOCAL JS ================= */
         computeLocal(calc, rowData) {
-
             let equation = calc.equation;
+            if (!equation) return 0;
 
             console.log("Equation: " + equation);
 
-            (calc.variables || []).forEach(v => {
+            let vars = (calc.variables || []).map(v => v.variableName);
+            if (vars.length === 0 && calc.equation) {
+                const reservedWords = new Set([
+                    "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+                    "abs", "ceil", "floor", "round", "sqrt", "cbrt", "exp", "log", "log2", "log10",
+                    "pow", "min", "max", "sum", "avg", "count", "true", "false", "pi", "e"
+                ]);
+                const matches = calc.equation.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
+                vars = [...new Set(matches.filter(m => !reservedWords.has(m.toLowerCase())))];
+            }
 
+            vars.forEach(varName => {
+                const cleanName = DataTablesFactory.getCleanFieldId(varName, this.FIELD_META);
+                const rawVal = rowData[varName] !== undefined ? rowData[varName] : rowData[cleanName];
                 const value =
                     (DataTablesFactory?.normalizeNumber?.(
-                        rowData[v.variableName]
-                    ) ?? Number(rowData[v.variableName]) ?? 0);
+                        rawVal
+                    ) ?? Number(rawVal) ?? 0);
 
                 equation = equation.replace(
-                    new RegExp("\\b" + v.variableName + "\\b", "g"),
+                    new RegExp("\\b" + varName + "\\b", "g"),
                     value
                 );
             });
@@ -189,17 +231,49 @@
             return new Promise((resolve) => {
                 const params = {};
 
+                // 1. Pass defined variables
                 (calc.variables || []).forEach(v => {
-                    params[v.variableName] =
-                        (DataTablesFactory?.normalizeNumber?.(
-                            rowData[v.variableName]
-                        ) ?? Number(rowData[v.variableName]) ?? 0);
+                    const varName = v.variableName;
+                    const cleanName = DataTablesFactory.getCleanFieldId(varName, this.FIELD_META);
+                    const rawVal = rowData[varName] !== undefined ? rowData[varName] : rowData[cleanName];
+                    const numVal = (DataTablesFactory?.normalizeNumber?.(rawVal) ?? Number(rawVal) ?? 0);
+                    if (varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(varName)) {
+                        params[varName] = numVal;
+                    }
+                    if (cleanName && cleanName !== varName && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleanName)) {
+                        params[cleanName] = numVal;
+                    }
                 });
 
+                // 2. Also extract from equation if variables was empty
+                if (Object.keys(params).length === 0 && calc.equation) {
+                    const matches = calc.equation.match(/\b[a-zA-Z_][a-zA-Z0-9_]*\b/g) || [];
+                    matches.forEach(m => {
+                        const cleanName = DataTablesFactory.getCleanFieldId(m, this.FIELD_META);
+                        const rawVal = rowData[m] !== undefined ? rowData[m] : rowData[cleanName];
+                        if (rawVal !== undefined && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(m)) {
+                            params[m] = (DataTablesFactory?.normalizeNumber?.(rawVal) ?? Number(rawVal) ?? 0);
+                        }
+                    });
+                }
+
+                // 3. Fallback pass other simple alphanumeric rowData keys (avoiding complex keys)
+                Object.keys(rowData || {}).forEach(k => {
+                    const cleanKey = DataTablesFactory.getCleanFieldId(k, this.FIELD_META);
+                    if (cleanKey && /^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cleanKey) && params[cleanKey] === undefined) {
+                        params[cleanKey] = (DataTablesFactory?.normalizeNumber?.(rowData[k]) ?? rowData[k]);
+                    }
+                });
+
+                const ajaxUrl = this.CALCULATION_URL.startsWith(this.BASE_URL)
+                    ? `${this.CALCULATION_URL}?action=calculate`
+                    : `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`;
+
                 $.ajax({
-                    url: `${this.BASE_URL}${this.CALCULATION_URL}?action=calculate`,
+                    url: ajaxUrl,
                     type: 'POST',
                     contentType: 'application/json',
+                    dataType: 'json',
                     data: JSON.stringify({
                         formDefId: this.formDefId,
                         fieldId: fieldId,
@@ -208,9 +282,24 @@
                     }),
                     success: (res) => {
                         if (token !== this.calcToken) return;
-                        resolve(res?.value ?? 0);
+                        if (typeof res === 'string') {
+                            try { res = JSON.parse(res); } catch (e) {}
+                        }
+                        const val = res?.value ?? res?.mask_value ?? 0;
+                        resolve(val);
                     },
-                    error: () => resolve(0)
+                    error: (err) => {
+                        console.error("Calculation remote error:", err);
+                        // Fallback to local computation if equation is present
+                        if (calc.equation) {
+                            try {
+                                const localVal = this.computeLocal(calc, rowData);
+                                resolve(localVal);
+                                return;
+                            } catch (e) {}
+                        }
+                        resolve(0);
+                    }
                 });
             });
         },

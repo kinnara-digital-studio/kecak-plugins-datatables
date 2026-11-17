@@ -11,9 +11,9 @@
         <script src="${request.contextPath}/plugin/${className}/js/confirm-dialog.js"></script>
         <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
 
-        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
-        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-calculation-engine.js"></script>
-        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-grid-controller.js"></script>
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-factory.js?build=${buildNumber!}"></script>
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-calculation-engine.js?build=${buildNumber!}"></script>
+        <script type="text/javascript" src="${request.contextPath}/plugin/${className}/js/datatables-grid-controller.js?build=${buildNumber!}"></script>
         <link href="${request.contextPath}/plugin/${className}/css/datatables-grid.css" rel="stylesheet" type="text/css" />
 
         <div id="${formGridId}" name="${elementParamName!}" class="datatable-form-wrapper datatable-card grid form-element">

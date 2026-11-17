@@ -416,8 +416,8 @@
             if (meta.type === 'select') {
                 const opt = (meta.options || []).find(o => o.value === value);
                 text = opt ? opt.label : value;
-            } else if (meta.formatter) {
-                text = DataTablesFactory.formatNumber(value, meta);
+            } else if (meta.formatter || meta.formatterPlugin) {
+                text = DataTablesFactory.formatNumber(value, meta) ?? value ?? '';
             }
 
             $cell.attr('data-value', value).html(text).removeClass('editing');
@@ -434,7 +434,7 @@
                         (meta.options || []).forEach(o => $sel.append($('<option/>').val(o.value).text(o.label)));
                         return $sel;
                     case 'number':
-                        return $('<input type="number"/>');
+                        return $('<input type="number" step="any"/>');
                     case 'date':
                         return $('<input type="date"/>');
                     default:

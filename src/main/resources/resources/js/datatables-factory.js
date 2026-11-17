@@ -217,7 +217,7 @@
                         }
 
                         if (meta.formatter || meta.formatterPlugin) {
-                            return this.formatNumber(data, meta);
+                            return this.formatNumber(data, meta) ?? data;
                         }
 
                         // FILE UPLOAD (READONLY)
@@ -335,35 +335,32 @@
         formatNumber: function (value, meta) {
             const num = this.normalizeNumber(value);
 
-            console.log("Num: " + num)
+            console.log("Num: " + num);
 
-            if (num === null) return value;
+            if (num === null || num === undefined) return value ?? '';
 
-            const fmt = meta.formatter;
-            const fmtPlugin = meta.formatterPlugin;
+            const fmt = meta?.formatter;
+            const fmtPlugin = meta?.formatterPlugin;
 
-            console.log("Formatter Plugin: " + fmtPlugin);
+            console.log("Formatter Plugin: ", fmtPlugin);
 
-            if (!fmt && !fmtPlugin) return num;
-
-            if (fmtPlugin != null) {
-                if (fmtPlugin.className) {
-                    if (fmtPlugin.className.split('.').pop() === 'PercentageFormatter') {
-                        const props = fmtPlugin.properties || {};
-                        const decimals = parseInt(fmtPlugin.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
-                        
-                        return parseFloat((num * 100).toFixed(decimals)) + '%';
-                    } else if (fmtPlugin.className.split('.').pop() === 'CurrencyFormatter') {
-                        const formatter = new Intl.NumberFormat('id-ID', {
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 2,
-                            useGrouping: true
-                        });
-
-                        return formatter.format(num);
-                    }
+            if (fmtPlugin && fmtPlugin.className) {
+                const pluginName = fmtPlugin.className.split('.').pop();
+                if (pluginName === 'PercentageFormatter') {
+                    const props = fmtPlugin.properties || {};
+                    const decimals = parseInt(fmtPlugin.decimalPlaces || props.numOfDecimal || props.decimals || 2, 10);
+                    return parseFloat((num * 100).toFixed(decimals)) + '%';
+                } else if (pluginName === 'CurrencyFormatter') {
+                    const formatter = new Intl.NumberFormat('id-ID', {
+                        minimumFractionDigits: 0,
+                        maximumFractionDigits: 2,
+                        useGrouping: true
+                    });
+                    return formatter.format(num);
                 }
-            } else if (fmt != null) {
+            }
+
+            if (fmt != null && fmt.style) {
                 const decimals = parseInt(fmt.numOfDecimal ?? 0, 10);
                 const style = fmt.style || 'us';
 
@@ -374,9 +371,9 @@
                 });
 
                 return formatter.format(num);
-            } else {
-                return num;
             }
+
+            return num;
         },
 
         ensureDateString: function (value) {
@@ -484,23 +481,18 @@
         },
 
         whitelistSection: function(compositeKey, fieldMeta) {
-            if (!compositeKey.includes(".")) return targetKey;
+            if (!compositeKey || !compositeKey.includes(".")) return true;
 
-            if (!fieldMeta) return null;
+            if (!fieldMeta) return true;
 
             const fieldSection = compositeKey.split('.')[0];
-            const sections = Object.values(fieldMeta).filter(m => m.type === 'section');
-            let isWhitelist = false;
+            const sectionMeta = fieldMeta[fieldSection] || Object.values(fieldMeta).find(m => m && m.type === 'section' && m.id === fieldSection);
 
-            sections.forEach(section => {
-                if (section.id === fieldSection){
-                    if (!section.visibilityControl || !section.visibilityValue) {
-                        isWhitelist = true;
-                    };
-                }
-            });
+            if (sectionMeta && sectionMeta.visibilityControl && sectionMeta.visibilityValue) {
+                return false;
+            }
 
-            return isWhitelist;
+            return true;
         }
     };
 })();

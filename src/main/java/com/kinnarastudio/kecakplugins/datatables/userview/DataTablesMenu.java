@@ -166,6 +166,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
 
         String addFormUrl = "/web/app/" + appId + "/" + appVersion + "/form/embed?_submitButtonLabel=Submit&_mode=add";
         dataModel.put("addFormUrl", addFormUrl);
+        dataModel.put("buildNumber", getVersion());
 
         return pluginManager.getPluginFreeMarkerTemplate(dataModel, getClassName(), template, "/messages/DataTablesMenu");
     }
@@ -183,6 +184,7 @@ public class DataTablesMenu extends UserviewMenu implements PluginWebSupport {
                     JSONObject body = DataTablesUtil.constructRequestBody(request);
                     JSONObject data = dataTablesMenuBiz().calculationLoadBinder(body, appDef, pluginManager);
 
+                    response.setContentType("application/json");
                     response.setStatus(HttpServletResponse.SC_OK);
                     response.getWriter().write(data.toString());
 

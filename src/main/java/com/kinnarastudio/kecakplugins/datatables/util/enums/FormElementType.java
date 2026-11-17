@@ -49,6 +49,11 @@ public enum FormElementType {
             "number"
     ),
 
+    NUMERIC_FIELD(
+            "com.kinnarastudio.kecakplugins.numerictextfield.NumericField",
+            "number"
+    ),
+
     AUTOFILL_SELECT_BOX(
             "com.kinnarastudio.kecakplugins.autofillselectbox.AutofillSelectBox",
             "select"

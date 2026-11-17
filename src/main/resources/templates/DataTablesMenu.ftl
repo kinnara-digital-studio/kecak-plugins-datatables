@@ -11,9 +11,9 @@
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/confirm-dialog.css"/>
 
 <!-- DATATABLES EDITOR -->
-<script src="${request.contextPath}/plugin/${className}/js/datatables-factory.js"></script>
-<script src="${request.contextPath}/plugin/${className}/js/datatables-calculation-engine.js"></script>
-<script src="${request.contextPath}/plugin/${className}/js/datatables-menu-controller.js"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatables-factory.js?build=${buildNumber!}"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatables-calculation-engine.js?build=${buildNumber!}"></script>
+<script src="${request.contextPath}/plugin/${className}/js/datatables-menu-controller.js?build=${buildNumber!}"></script>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/custom-datatables.css" type="text/css"/>
 <link rel="stylesheet" href="${request.contextPath}/plugin/${className}/css/datatables-inbox.css" type="text/css"/>
 

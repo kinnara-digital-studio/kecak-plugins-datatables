@@ -1,9 +1,14 @@
 package com.kinnarastudio.kecakplugins.datatables.core;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.annotation.Nullable;
 
@@ -251,10 +256,16 @@ public class FormMetaBuilder {
 
         /* ===== FORMATTER ===== */
         meta.put("formatter", resolveFormatter(props));
-        meta.put("formatterPlugin", resolveFormatterPlugin(props));
+        Map<String, Object> formatterPlugin = resolveFormatterPlugin(props);
+        if (formatterPlugin != null) {
+            meta.put("formatterPlugin", formatterPlugin);
+        }
 
         /* ===== CALCULATION ===== */
-        meta.put("calculationLoadBinder", resolveCalculationBinder(props, sectionId));
+        Map<String, Object> calculationBinder = resolveCalculationBinder(props, sectionId);
+        if (calculationBinder != null) {
+            meta.put("calculationLoadBinder", calculationBinder);
+        }
 
         /* ===== AUTOFILL ===== */
         meta.put("autofillLoadBinder", resolveAutofillBinder(props));
@@ -317,14 +328,10 @@ public class FormMetaBuilder {
     }
 
     private Map<String, Object> resolveFormatterPlugin(JSONObject props) {
-        // LogUtil.info(getClass().getName(), "Props: " + props);
-
-        Map<String, Object> formatter = new HashMap<>();
         JSONObject formatterPlugin = props.optJSONObject("formatterPlugin");
 
-        if (formatterPlugin != null && formatterPlugin.length() != 0) {
-            // LogUtil.info(getClass().getName(), "Formatter Plugin: " + props.optString("id") + ": " + formatterPlugin.optString("className"));
-
+        if (formatterPlugin != null && Validator.isNotNullOrEmpty(formatterPlugin.optString("className"))) {
+            Map<String, Object> formatter = new HashMap<>();
             formatter.put("className", formatterPlugin.optString("className"));
             formatter.put("decimalPlaces", props.optString("decimalPlaces", "2"));
             return formatter;
@@ -357,30 +364,42 @@ public class FormMetaBuilder {
             }
         }
 
+        if (mappedVars.length() == 0) {
+            JSONObject cp = calc != null ? calc.optJSONObject("properties") : null;
+            String equation = cp != null ? cp.optString("equation") : props.optString("jsEquation");
+            extractVariablesFromEquation(equation, sectionId, mappedVars);
+        }
+
         boolean hasValidCalculationBinder =
                 calc != null
                 && Validator.isNotNullOrEmpty(calc.optString("className"))
                 && Validator.isNotNullOrEmpty(calc.optJSONObject("properties"));
 
-        if (!hasValidCalculationBinder) {
-            // === TREAT AS NO calculationLoadBinder ===
-            if (props.has("useJsEquation")) {
-                Map<String, Object> meta = new HashMap<>();
-                meta.put("useJsEquation", props.optString("useJsEquation"));
-                meta.put("equation", props.optString("jsEquation"));
-                meta.put("variables", mappedVars);
+        String useJsEquation = props.optString("useJsEquation");
+        boolean hasJsEquation = Validator.isNotNullOrEmpty(useJsEquation)
+                && !"no".equalsIgnoreCase(useJsEquation)
+                && !"false".equalsIgnoreCase(useJsEquation);
 
-                Map<String, Object> roundNumber = new HashMap<>();
-
-                if (Validator.isNotNullOrEmpty(props.optString("roundNumber"))) {
-                    roundNumber.put("isRoundNumber", props.optString("roundNumber"));
-                    roundNumber.put("roundingMode", props.optString("roundingMode"));
-                    roundNumber.put("decimalPlaces", props.optString("decimalPlaces"));
-                    meta.put("roundNumber", roundNumber);
-                }
-                return meta;
-            }
+        if (!hasValidCalculationBinder && !hasJsEquation) {
             return null;
+        }
+
+        if (!hasValidCalculationBinder) {
+            // === TREAT AS NO calculationLoadBinder, BUT USE JS EQUATION ===
+            Map<String, Object> meta = new HashMap<>();
+            meta.put("useJsEquation", useJsEquation);
+            meta.put("equation", "multiline".equalsIgnoreCase(useJsEquation) ? props.optString("multilineJs") : props.optString("jsEquation"));
+            meta.put("variables", mappedVars);
+
+            Map<String, Object> roundNumber = new HashMap<>();
+
+            if (Validator.isNotNullOrEmpty(props.optString("roundNumber"))) {
+                roundNumber.put("isRoundNumber", props.optString("roundNumber"));
+                roundNumber.put("roundingMode", props.optString("roundingMode"));
+                roundNumber.put("decimalPlaces", props.optString("decimalPlaces"));
+                meta.put("roundNumber", roundNumber);
+            }
+            return meta;
 
         } else {
             // === calculationLoadBinder VALID ===
@@ -388,11 +407,34 @@ public class FormMetaBuilder {
             meta.put("className", calc.optString("className"));
 
             JSONObject cp = calc.optJSONObject("properties");
-            meta.put("equation", cp.optString("equation"));
-            meta.put("debug", cp.optString("debug"));
+            meta.put("equation", cp != null ? cp.optString("equation") : "");
+            meta.put("debug", cp != null ? cp.optString("debug") : "");
             meta.put("variables", mappedVars);
 
             return meta;
+        }
+    }
+
+    private static final Set<String> RESERVED_MATH_WORDS = new HashSet<>(Arrays.asList(
+            "sin", "cos", "tan", "asin", "acos", "atan", "sinh", "cosh", "tanh",
+            "abs", "ceil", "floor", "round", "sqrt", "cbrt", "exp", "log", "log2", "log10",
+            "pow", "min", "max", "sum", "avg", "count", "true", "false", "pi", "e"
+    ));
+
+    private void extractVariablesFromEquation(String equation, String sectionId, JSONArray mappedVars) {
+        if (Validator.isNullOrEmpty(equation)) return;
+        Matcher matcher = Pattern.compile("\\b[a-zA-Z_][a-zA-Z0-9_]*\\b").matcher(equation);
+        Set<String> seen = new HashSet<>();
+        while (matcher.find()) {
+            String varName = matcher.group();
+            if (!RESERVED_MATH_WORDS.contains(varName.toLowerCase()) && seen.add(varName)) {
+                try {
+                    JSONObject varObj = new JSONObject();
+                    varObj.put("variableName", varName);
+                    varObj.put("targetCompositeKey", (Validator.isNotNullOrEmpty(sectionId) ? sectionId + "_" : "") + varName);
+                    mappedVars.put(varObj);
+                } catch (JSONException ignored) {}
+            }
         }
     }
 
@@ -470,7 +512,7 @@ public class FormMetaBuilder {
     }
 
     private String resolveType(String className, boolean numeric) {
-        if (numeric) return "number";
+        if (numeric || (className != null && className.contains("NumericField"))) return "number";
         return FormElementType.resolveType(className);
     }
 

@@ -94,6 +94,7 @@ public class DataTablesGridElement extends Element implements FormBuilderPalette
         dataModel.put("appVersion", appVersion);
         dataModel.put("className", getClassName());
         dataModel.put("element", this);
+        dataModel.put("buildNumber", getVersion());
 
         String formDefId = this.getPropertyFormDefId();
         dataModel.put("formDefId", formDefId);

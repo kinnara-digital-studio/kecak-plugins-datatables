@@ -280,7 +280,18 @@
         onCellClick: function ($td) {
             if (this.editingCell && this.editingCell.is($td)) return;
 
-            if (this.editingCell) this.cancelEdit(this.editingCell);
+            if (this.editingCell) {
+                const $prevEditor = this.editingCell.find('.cell-editor');
+                if ($prevEditor.length) {
+                    const prevCell = this.table.cell(this.editingCell);
+                    if (prevCell && prevCell.index()) {
+                        const prevIdx = prevCell.index();
+                        const prevField = this.FIELD_MAP[prevIdx.column];
+                        this.commit(this.editingCell, prevField, prevIdx.row, $prevEditor.val());
+                    }
+                }
+                this.editingCell = null;
+            }
 
             const idx = this.table.cell($td).index();
             if (!idx) return;
@@ -473,12 +484,13 @@
         },
 
         applyValueToCell: function ($cell, value, meta) {
+            meta = meta || {};
             let display = value ?? '';
             if (meta.type === 'select') {
                 const option = (meta.options || []).find(o => String(o.value) === String(value));
                 display = option ? option.label : '';
             } else if (meta.formatter || meta.formatterPlugin) {
-                display = DataTablesFactory.formatNumber(value, meta);
+                display = DataTablesFactory.formatNumber(value, meta) ?? value ?? '';
             }
             $cell.attr('data-value', value ?? '').html(display).removeClass('editing');
         },
@@ -491,7 +503,7 @@
                     const $s = $('<select class="cell-editor"/>');
                     (meta.options || []).forEach(o => $('<option/>').val(o.value).text(o.label).appendTo($s));
                     return $s.val(val);
-                case 'number': return $('<input type="number" class="cell-editor"/>').val(val);
+                case 'number': return $('<input type="number" step="any" class="cell-editor"/>').val(val);
                 default: return $('<input type="text" class="cell-editor"/>').val(val);
             }
         },
